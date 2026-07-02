@@ -1,5 +1,6 @@
 pluginManagement {
     repositories {
+        gradlePluginPortal()
         maven {
             // RetroFuturaGradle
             name 'GTNH Maven'
@@ -10,7 +11,6 @@ pluginManagement {
                 includeGroup 'com.gtnewhorizons.retrofuturagradle'
             }
         }
-        gradlePluginPortal()
         mavenCentral()
         mavenLocal()
     }
