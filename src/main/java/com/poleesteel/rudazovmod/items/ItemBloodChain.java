@@ -32,27 +32,30 @@ public class ItemBloodChain extends Item {
     @Override
     public boolean itemInteractionForEntity(ItemStack stack, EntityPlayer playerIn, EntityLivingBase target, EnumHand hand) {
 
-        // Вся логика создания сущностей должна происходить ТОЛЬКО на сервере
-        if (hand == EnumHand.MAIN_HAND) {
-            if (!playerIn.world.isRemote) {
+        if (playerIn.getCooldownTracker().hasCooldown(this)) {
+            return false;
+        }
 
-                // Создаем цепь и передаем ей цель
-                EntityBloodChain chain = new EntityBloodChain(playerIn.world, target);
+        if (!playerIn.world.isRemote) {
 
-                // Спавним энтити в мире
-                playerIn.world.spawnEntity(chain);
-
-                // Проигрываем звук надевания кольчуги (лязг цепей)
-                playerIn.world.playSound(null, playerIn.posX, playerIn.posY, playerIn.posZ,
-                        SoundEvents.ITEM_ARMOR_EQUIP_CHAIN, SoundCategory.PLAYERS, 1.0F, 1.0F);
-
-                // Даем предмету кулдаун (перезарядку). 60 тиков = 3 секунды
-                playerIn.getCooldownTracker().setCooldown(this, 60);
+            // --- НОВОЕ: ОГРАНИЧЕНИЕ В 1 ЦЕЛЬ ---
+            // Ищем в мире все существующие цепи, у которых ты являешься хозяином, и удаляем их
+            for (EntityBloodChain oldChain : playerIn.world.getEntities(EntityBloodChain.class, e -> e.getOwner() == playerIn)) {
+                oldChain.setDead();
             }
-            return true; // Возвращаем true, чтобы игра поняла, что клик был успешным и мы выполнили
+            // -----------------------------------
+
+            EntityBloodChain chain = new EntityBloodChain(playerIn.world, target, playerIn);
+            playerIn.world.spawnEntity(chain);
+
+            playerIn.world.playSound(null, playerIn.posX, playerIn.posY, playerIn.posZ,
+                    SoundEvents.ITEM_ARMOR_EQUIP_CHAIN, SoundCategory.PLAYERS, 1.0F, 1.0F);
+
+            playerIn.getCooldownTracker().setCooldown(this, 60);
         }
-        return false; // Если это левая рука - ничего не делаем
-        }
+
+        return true;
+    }
     // 1. Задаем базовый урон и скорость атаки для ЛКМ
     @Override
     public Multimap<String, AttributeModifier> getItemAttributeModifiers(EntityEquipmentSlot equipmentSlot) {

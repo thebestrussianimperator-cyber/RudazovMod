@@ -12,11 +12,11 @@ import net.minecraft.util.ResourceLocation;
 import org.lwjgl.opengl.GL11;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
+import net.minecraft.client.renderer.culling.ICamera;
 
 @SideOnly(Side.CLIENT)
 public class RenderBloodChain extends Render<EntityBloodChain> {
 
-    // Путь к нашей будущей текстуре одного звена цепи
     private static final ResourceLocation CHAIN_TEXTURE = new ResourceLocation("rudazovmod:textures/entity/blood_chain_link.png");
 
     public RenderBloodChain(RenderManager renderManager) {
@@ -28,81 +28,114 @@ public class RenderBloodChain extends Render<EntityBloodChain> {
         Entity target = entity.getTarget();
         if (target == null) return;
 
+        Entity owner = entity.getOwner();
+
         GlStateManager.pushMatrix();
         GlStateManager.translate(x, y, z);
 
-        // Включаем текстуры и отключаем освещение, чтобы цепь "светилась" зловещим красным
         this.bindTexture(CHAIN_TEXTURE);
         GlStateManager.disableLighting();
         GlStateManager.enableBlend();
-        GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F); // Цвет берется напрямую из текстуры
+        GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
 
         Tessellator tessellator = Tessellator.getInstance();
         BufferBuilder buffer = tessellator.getBuffer();
 
-        // --- ПРОЦЕДУРНАЯ ГЕОМЕТРИЯ 3D-ЗВЕНЬЕВ ---
+        // --- 1. ОТРИСОВКА НАТЯНУТОЙ ЦЕПИ (ПОВОДОК К ИГРОКУ) ---
+        if (owner != null && owner != target) {
+            // Вычисляем точные координаты центра тела/рук игрока
+            double ownerX = owner.prevPosX + (owner.posX - owner.prevPosX) * partialTicks;
+            double ownerY = owner.prevPosY + (owner.posY - owner.prevPosY) * partialTicks + (owner.height * 0.5D);
+            double ownerZ = owner.prevPosZ + (owner.posZ - owner.prevPosZ) * partialTicks;
 
-        // 1. Считаем радиус на основе ДИАГОНАЛИ моба + небольшой отступ, чтобы не проваливаться в углы
+            double targetX = entity.prevPosX + (entity.posX - entity.prevPosX) * partialTicks;
+            double targetY = entity.prevPosY + (entity.posY - entity.prevPosY) * partialTicks;
+            double targetZ = entity.prevPosZ + (entity.posZ - entity.prevPosZ) * partialTicks;
+
+            // Вектор от моба к игроку
+            double dx = ownerX - targetX;
+            double dy = ownerY - targetY;
+            double dz = ownerZ - targetZ;
+
+            double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            double horizDist = Math.sqrt(dx * dx + dz * dz);
+
+            // ИСПРАВЛЕННАЯ МАТЕМАТИКА: Точное прицеливание в системе координат Minecraft
+            float yaw = (float) (Math.atan2(dx, dz) * (180D / Math.PI));
+            float pitch = (float) -(Math.atan2(dy, horizDist) * (180D / Math.PI));
+
+            GlStateManager.pushMatrix();
+            GlStateManager.rotate(yaw, 0.0F, 1.0F, 0.0F);
+            GlStateManager.rotate(pitch, 1.0F, 0.0F, 0.0F);
+
+            int leashLinks = Math.max(1, (int) (dist / 0.25D));
+            float linkLen = (float) (dist / leashLinks);
+            float w = 0.15F;
+
+            GlStateManager.disableCull();
+            for (int i = 0; i < leashLinks; i++) {
+                GlStateManager.pushMatrix();
+                GlStateManager.translate(0, 0, i * linkLen);
+                if (i % 2 == 0) {
+                    GlStateManager.rotate(90.0F, 0.0F, 0.0F, 1.0F);
+                }
+                buffer.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX);
+                buffer.pos(-w, 0, 0).tex(0, 0).endVertex();
+                buffer.pos(w, 0, 0).tex(1, 0).endVertex();
+                buffer.pos(w, 0, linkLen).tex(1, 1).endVertex();
+                buffer.pos(-w, 0, linkLen).tex(0, 1).endVertex();
+                tessellator.draw();
+                GlStateManager.popMatrix();
+            }
+            GlStateManager.enableCull();
+            GlStateManager.popMatrix();
+        }
+
+        // --- 2. ОТРИСОВКА СПИРАЛИ ВОКРУГ МОБА ---
+        GlStateManager.disableCull();
         float radius = (float) Math.sqrt((target.width * target.width) * 2) / 2.0F + 0.15F;
         float height = target.height;
-        int segments = 30; // Количество звеньев цепи
-        float loops = 2.5F; // Количество витков вокруг моба
-        float timeOffset = (entity.ticksExisted + partialTicks) * 0.05F; // Скорость вращения
+        int segments = 45;
+        float loops = 2.5F;
+        float timeOffset = (entity.ticksExisted + partialTicks) * 0.05F;
 
         for (int i = 0; i < segments; i++) {
-            // Текущая точка спирали
             float t1 = (float) i / segments;
             float angle1 = t1 * (float) Math.PI * 2.0F * loops + timeOffset;
             float cx = (float) Math.cos(angle1) * radius;
             float cz = (float) Math.sin(angle1) * radius;
             float cy = (t1 * height) - (height / 2.0F);
 
-            // Следующая точка спирали (куда должно смотреть звено)
             float t2 = (float) (i + 1) / segments;
             float angle2 = t2 * (float) Math.PI * 2.0F * loops + timeOffset;
             float nx = (float) Math.cos(angle2) * radius;
             float nz = (float) Math.sin(angle2) * radius;
             float ny = (t2 * height) - (height / 2.0F);
 
-            // Вычисляем вектор направления
             double dx = nx - cx;
             double dy = ny - cy;
             double dz = nz - cz;
             double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
             double horizDist = Math.sqrt(dx * dx + dz * dz);
 
-            // Вычисляем углы поворота (Yaw и Pitch), чтобы звено смотрело точно на следующую точку
-            float yaw = (float) (Math.atan2(dz, dx) * (180D / Math.PI)) - 90.0F;
+            // Здесь тоже обновили формулу для идеальной стыковки звеньев
+            float yaw = (float) (Math.atan2(dx, dz) * (180D / Math.PI));
             float pitch = (float) -(Math.atan2(dy, horizDist) * (180D / Math.PI));
 
             GlStateManager.pushMatrix();
-
-            // ОТКЛЮЧАЕМ CULLING (чтобы текстуру было видно с обеих сторон)
-            GlStateManager.disableCull();
-            // Включаем поддержку полупрозрачности (альфа-канала) для PNG
-            GlStateManager.enableBlend();
-            GlStateManager.alphaFunc(516, 0.1F);
-            // Перемещаемся в текущую точку
             GlStateManager.translate(cx, cy, cz);
-            // Поворачиваем звено в сторону следующей точки
             GlStateManager.rotate(yaw, 0.0F, 1.0F, 0.0F);
             GlStateManager.rotate(pitch, 1.0F, 0.0F, 0.0F);
 
-            // МАГИЯ: Каждое четное звено поворачиваем на 90 градусов по оси Z, чтобы они цеплялись друг за друга
             if (i % 2 == 0) {
                 GlStateManager.rotate(90.0F, 0.0F, 0.0F, 1.0F);
             }
 
-            // Рисуем 3D плоскость (одно звено)
-            // МАГИЯ НАХЛЁСТА:
-            float w = 0.15F; // Ширина звена
-            // Делаем звено в 1.5 раза длиннее расстояния между точками
+            float w = 0.15F;
             float l = (float) dist * 1.5F;
-            // И сдвигаем его немного назад, чтобы оно "надевалось" на предыдущее
             float offset = (float) dist * 0.25F;
 
             buffer.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX);
-            // Обрати внимание, мы используем offset по оси Z
             buffer.pos(-w, 0, -offset).tex(0, 0).endVertex();
             buffer.pos(w, 0, -offset).tex(1, 0).endVertex();
             buffer.pos(w, 0, l - offset).tex(1, 1).endVertex();
@@ -112,6 +145,7 @@ public class RenderBloodChain extends Render<EntityBloodChain> {
             GlStateManager.popMatrix();
         }
         GlStateManager.enableCull();
+
         GlStateManager.enableLighting();
         GlStateManager.popMatrix();
 
@@ -121,5 +155,12 @@ public class RenderBloodChain extends Render<EntityBloodChain> {
     @Override
     protected ResourceLocation getEntityTexture(EntityBloodChain entity) {
         return CHAIN_TEXTURE;
+    }
+
+    // Отключаем ванильное отсечение (Frustum Culling).
+    // Теперь игра будет рисовать цепь всегда, даже если моб находится за спиной или на краю экрана!
+    @Override
+    public boolean shouldRender(EntityBloodChain livingEntity, ICamera camera, double camX, double camY, double camZ) {
+        return true;
     }
 }
