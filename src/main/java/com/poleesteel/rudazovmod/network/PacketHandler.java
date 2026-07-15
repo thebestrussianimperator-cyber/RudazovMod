@@ -12,6 +12,6 @@ public class PacketHandler {
         // Регистрируем наш пакет: он летит на СТОРОНУ КЛИЕНТА (Side.CLIENT)
         INSTANCE.registerMessage(PacketSyncMana.Handler.class, PacketSyncMana.class, id++, Side.CLIENT);
         // Клиент -> Сервер (телекинез)
-        INSTANCE.registerMessage(PacketUseTelekinesis.Handler.class, PacketUseTelekinesis.class, id++, Side.SERVER);
+        INSTANCE.registerMessage(PacketCastSpell.Handler.class, PacketCastSpell.class, id++, Side.SERVER);
     }
 }

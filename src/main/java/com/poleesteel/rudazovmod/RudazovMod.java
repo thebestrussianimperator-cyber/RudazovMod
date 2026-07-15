@@ -2,6 +2,7 @@ package com.poleesteel.rudazovmod;
 
 import com.poleesteel.rudazovmod.init.RegistryHandler;
 import com.poleesteel.rudazovmod.magic.MagicEventsHandler;
+import com.poleesteel.rudazovmod.magic.SpellRegistry;
 import com.poleesteel.rudazovmod.network.PacketHandler;
 import net.minecraft.block.Block;
 import net.minecraft.item.Item;
@@ -34,6 +35,7 @@ public class RudazovMod {
         // 2. Регистрируем обработчик событий магии (регенерация маны, сохранение при смерти)
         MinecraftForge.EVENT_BUS.register(new MagicEventsHandler());
         PacketHandler.init();
+        SpellRegistry.init();
     }
 
     @SubscribeEvent

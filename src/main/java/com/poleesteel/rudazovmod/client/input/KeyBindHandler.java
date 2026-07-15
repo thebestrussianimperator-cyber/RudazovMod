@@ -1,5 +1,6 @@
 package com.poleesteel.rudazovmod.client.input;
 
+import com.poleesteel.rudazovmod.network.PacketCastSpell;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.settings.KeyBinding;
 import net.minecraftforge.fml.client.registry.ClientRegistry;
@@ -10,7 +11,6 @@ import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 import org.lwjgl.input.Keyboard;
 import com.poleesteel.rudazovmod.network.PacketHandler;
-import com.poleesteel.rudazovmod.network.PacketUseTelekinesis;
 
 @Mod.EventBusSubscriber(Side.CLIENT)
 public class KeyBindHandler {
@@ -40,7 +40,7 @@ public class KeyBindHandler {
         if (KEY_TELEKINESIS.isKeyDown()) {
             // Чтобы не спамить сеть на 100%, отправляем пакет каждый 2-й тик (10 раз в секунду)
             if (mc.player.ticksExisted % 2 == 0) {
-                PacketHandler.INSTANCE.sendToServer(new PacketUseTelekinesis());
+                PacketHandler.INSTANCE.sendToServer(new PacketCastSpell("rudazovmod:telekinesis"));
             }
         }
     }
