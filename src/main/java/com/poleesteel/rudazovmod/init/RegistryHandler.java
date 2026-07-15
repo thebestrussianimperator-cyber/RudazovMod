@@ -21,6 +21,10 @@ import net.minecraftforge.fml.common.registry.EntityEntryBuilder;
 import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.fml.client.registry.RenderingRegistry;
 import com.poleesteel.rudazovmod.client.render.entity.RenderBloodChain;
+import net.minecraftforge.common.capabilities.CapabilityManager;
+import com.poleesteel.rudazovmod.capabilities.IActiveSpirit;
+import com.poleesteel.rudazovmod.capabilities.ActiveSpiritStorage;
+import com.poleesteel.rudazovmod.capabilities.ActiveSpiritData;
 
 @Mod.EventBusSubscriber
 public class RegistryHandler {
@@ -78,5 +82,9 @@ public class RegistryHandler {
                 .build();
 
         event.getRegistry().register(chainEntry);
+    }
+
+    public static void registerCapabilities() {
+        CapabilityManager.INSTANCE.register(IActiveSpirit.class, new ActiveSpiritStorage(), ActiveSpiritData.class);
     }
 }

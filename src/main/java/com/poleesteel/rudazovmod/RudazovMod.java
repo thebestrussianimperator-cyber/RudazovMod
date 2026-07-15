@@ -1,5 +1,8 @@
 package com.poleesteel.rudazovmod;
 
+import com.poleesteel.rudazovmod.init.RegistryHandler;
+import com.poleesteel.rudazovmod.magic.MagicEventsHandler;
+import com.poleesteel.rudazovmod.network.PacketHandler;
 import net.minecraft.block.Block;
 import net.minecraft.item.Item;
 import net.minecraft.item.crafting.IRecipe;
@@ -26,6 +29,11 @@ public class RudazovMod {
         // register to the event bus so that we can listen to events
         MinecraftForge.EVENT_BUS.register(this);
         LOGGER.info("I am " + Tags.MODNAME + " + at version " + Tags.VERSION);
+        // 1. Регистрируем нашу систему чакр и маны (вызываем метод из Шага 1)
+        RegistryHandler.registerCapabilities();
+        // 2. Регистрируем обработчик событий магии (регенерация маны, сохранение при смерти)
+        MinecraftForge.EVENT_BUS.register(new MagicEventsHandler());
+        PacketHandler.init();
     }
 
     @SubscribeEvent
