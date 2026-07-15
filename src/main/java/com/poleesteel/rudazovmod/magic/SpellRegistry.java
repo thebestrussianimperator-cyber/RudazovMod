@@ -1,6 +1,8 @@
 package com.poleesteel.rudazovmod.magic;
 
+import com.poleesteel.rudazovmod.magic.crafting.SpellElement;
 import com.poleesteel.rudazovmod.magic.spells.SpellTelekinesis;
+import com.poleesteel.rudazovmod.magic.spells.SpellTestProjectile;
 import net.minecraft.util.ResourceLocation;
 import java.util.HashMap;
 import java.util.Map;
@@ -28,5 +30,8 @@ public class SpellRegistry {
         // В будущем тут будет:
         // register(new SpellFireball());
         // register(new SpellHeal());
+        // === ТЕСТОВЫЕ ЗАКЛИНАНИЯ ===
+        register(new SpellTestProjectile("test_fire", "Тестовый Огонь", SpellElement.FIRE));
+        register(new SpellTestProjectile("test_ice", "Тестовый Лёд", SpellElement.ICE));
     }
 }

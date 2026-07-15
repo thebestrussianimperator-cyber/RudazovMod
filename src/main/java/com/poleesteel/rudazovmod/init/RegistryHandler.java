@@ -2,6 +2,8 @@ package com.poleesteel.rudazovmod.init;
 
 import com.poleesteel.rudazovmod.blocks.BloodIronBlock;
 import com.poleesteel.rudazovmod.blocks.BloodIronOre;
+import com.poleesteel.rudazovmod.client.render.entity.RenderSpellProjectile;
+import com.poleesteel.rudazovmod.entities.EntitySpellProjectile;
 import com.poleesteel.rudazovmod.items.BloodIronIngot;
 import com.poleesteel.rudazovmod.items.ItemBloodChain;
 import net.minecraft.block.Block;
@@ -63,6 +65,8 @@ public class RegistryHandler {
 
         // РЕГИСТРАЦИЯ ВИЗУАЛА СУЩНОСТИ
         RenderingRegistry.registerEntityRenderingHandler(EntityBloodChain.class, RenderBloodChain::new);
+        // РЕГИСТРАЦИЯ РЕНДЕРА СНАРЯДА
+        RenderingRegistry.registerEntityRenderingHandler(EntitySpellProjectile.class, RenderSpellProjectile::new);
     }
 
     @SideOnly(Side.CLIENT)
@@ -71,17 +75,25 @@ public class RegistryHandler {
     }
     @SubscribeEvent
     public static void onEntityRegister(RegistryEvent.Register<EntityEntry> event) {
-        // Уникальный ID для энтити внутри мода (например, 1)
+        // Счетчик network ID сущности (используется в пакетах/сейвах, должен быть стабильным)
         int networkId = 1;
 
         EntityEntry chainEntry = EntityEntryBuilder.create()
                 .entity(EntityBloodChain.class)
-                .id(new ResourceLocation("rudazovmod", "blood_chain_entity"), networkId)
+                .id(new ResourceLocation("rudazovmod", "blood_chain_entity"), networkId++) // 1 -> 2
                 .name("blood_chain_entity")
-                .tracker(64, 1, true) // Как далеко видно, как часто обновляется, нужна ли синхронизация скорости
+                .tracker(64, 1, true)
                 .build();
 
-        event.getRegistry().register(chainEntry);
+        EntityEntry projectileEntry = EntityEntryBuilder.create()
+                .entity(EntitySpellProjectile.class)
+                .id(new ResourceLocation("rudazovmod", "spell_projectile"), networkId++) // 2 -> 3
+                .name("spell_projectile")
+                .tracker(64, 1, true)
+                .build();
+
+        // Регистрируем сразу ОБЕ сущности через registerAll
+        event.getRegistry().registerAll(chainEntry, projectileEntry);
     }
 
     public static void registerCapabilities() {

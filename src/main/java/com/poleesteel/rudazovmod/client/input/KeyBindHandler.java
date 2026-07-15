@@ -39,8 +39,8 @@ public class KeyBindHandler {
         // Если игрок УДЕРЖИВАЕТ кнопку телекинеза
         if (KEY_TELEKINESIS.isKeyDown()) {
             // Чтобы не спамить сеть на 100%, отправляем пакет каждый 2-й тик (10 раз в секунду)
-            if (mc.player.ticksExisted % 2 == 0) {
-                PacketHandler.INSTANCE.sendToServer(new PacketCastSpell("rudazovmod:telekinesis"));
+            if (mc.player.ticksExisted % 10 == 0) {
+                PacketHandler.INSTANCE.sendToServer(new PacketCastSpell("rudazovmod:test_fire"));
             }
         }
     }
