@@ -8,6 +8,7 @@ import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.util.ResourceLocation;
+import java.util.Map;
 import net.minecraftforge.event.AttachCapabilitiesEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
@@ -50,9 +51,20 @@ public class MagicEventsHandler {
             IActiveSpirit newSpirit = event.getEntityPlayer().getCapability(ActiveSpiritProvider.ACTIVE_SPIRIT_CAP, null);
 
             if (oldSpirit != null && newSpirit != null) {
+                // Копируем ману и чакры
                 newSpirit.setMana(oldSpirit.getMana());
                 newSpirit.setMaxMana(oldSpirit.getMaxMana());
                 newSpirit.setChakraLevel(oldSpirit.getChakraLevel());
+
+                // Копируем изученные заклинания
+                for (String spellId : oldSpirit.getUnlockedSpells()) {
+                    newSpirit.unlockSpell(spellId);
+                }
+
+                // Копируем привязки к кнопкам
+                for (Map.Entry<Integer, String> entry : oldSpirit.getBoundSpells().entrySet()) {
+                    newSpirit.bindSpell(entry.getKey(), entry.getValue());
+                }
             }
         }
     }

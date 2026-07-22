@@ -4,6 +4,8 @@ import com.poleesteel.rudazovmod.init.RegistryHandler;
 import com.poleesteel.rudazovmod.magic.MagicEventsHandler;
 import com.poleesteel.rudazovmod.magic.SpellRegistry;
 import com.poleesteel.rudazovmod.network.PacketHandler;
+import com.poleesteel.rudazovmod.command.CommandRudazov;
+import com.poleesteel.rudazovmod.client.input.KeyBindHandler;
 import net.minecraft.block.Block;
 import net.minecraft.item.Item;
 import net.minecraft.item.crafting.IRecipe;
@@ -36,6 +38,11 @@ public class RudazovMod {
         MinecraftForge.EVENT_BUS.register(new MagicEventsHandler());
         PacketHandler.init();
         SpellRegistry.init();
+
+        // Регистрируем кнопки управления строго на стороне клиента
+        if (event.getSide().isClient()) {
+            KeyBindHandler.init();
+        }
     }
 
     @SubscribeEvent
@@ -66,8 +73,10 @@ public class RudazovMod {
     public void postInit(FMLPostInitializationEvent event) {
     }
 
-    @EventHandler
+    @Mod.EventHandler
     // register server commands in this event handler (Remove if not needed)
     public void serverStarting(FMLServerStartingEvent event) {
+        // Регистрируем тестовую команду
+        event.registerServerCommand(new CommandRudazov());
     }
 }

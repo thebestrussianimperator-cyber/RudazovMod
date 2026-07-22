@@ -4,6 +4,8 @@ import com.poleesteel.rudazovmod.magic.crafting.SpellElement;
 import com.poleesteel.rudazovmod.magic.spells.SpellTelekinesis;
 import com.poleesteel.rudazovmod.magic.spells.SpellTestProjectile;
 import net.minecraft.util.ResourceLocation;
+
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -24,6 +26,7 @@ public class SpellRegistry {
         return SPELLS.get(new ResourceLocation(idString));
     }
 
+    public static Collection<AbstractSpell> getAllSpells() { return SPELLS.values(); }
     // Вызывается при старте игры (в preInit)
     public static void init() {
         register(new SpellTelekinesis());

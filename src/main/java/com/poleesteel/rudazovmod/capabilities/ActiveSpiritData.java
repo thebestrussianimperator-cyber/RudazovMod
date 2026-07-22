@@ -1,5 +1,10 @@
 package com.poleesteel.rudazovmod.capabilities;
 
+import java.util.HashSet;
+import java.util.HashMap;
+import java.util.Set;
+import java.util.Map;
+
 public class ActiveSpiritData implements IActiveSpirit {
     private float currentMana = 50.0F;
     private float maxMana = 100.0F;
@@ -36,5 +41,40 @@ public class ActiveSpiritData implements IActiveSpirit {
     public void upgradeChakras() {
         this.chakraLevel++;
         this.maxMana += 50.0F;
+    }
+
+    private final Set<String> unlockedSpells = new HashSet<>();
+    private final Map<Integer, String> boundSpells = new HashMap<>();
+
+    @Override
+    public void unlockSpell(String spellId) {
+        this.unlockedSpells.add(spellId);
+    }
+
+    @Override
+    public boolean isSpellUnlocked(String spellId) {
+        return this.unlockedSpells.contains(spellId);
+    }
+
+    @Override
+    public Set<String> getUnlockedSpells() {
+        return this.unlockedSpells;
+    }
+
+    @Override
+    public void bindSpell(int slot, String spellId) {
+        if (slot >= 0 && slot < 4) {
+            this.boundSpells.put(slot, spellId);
+        }
+    }
+
+    @Override
+    public String getBoundSpell(int slot) {
+        return this.boundSpells.getOrDefault(slot, "");
+    }
+
+    @Override
+    public Map<Integer, String> getBoundSpells() {
+        return this.boundSpells;
     }
 }
