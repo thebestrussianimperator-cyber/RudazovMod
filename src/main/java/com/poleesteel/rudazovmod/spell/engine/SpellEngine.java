@@ -14,6 +14,7 @@ import com.poleesteel.rudazovmod.spell.api.TargetResolver;
 import com.poleesteel.rudazovmod.spell.api.TargetType;
 import com.poleesteel.rudazovmod.spell.form.HoldFormHandler;
 import com.poleesteel.rudazovmod.spell.form.RayFormHandler;
+import com.poleesteel.rudazovmod.spell.form.SelfFormHandler;
 import com.poleesteel.rudazovmod.spell.resolve.BlockTargetResolver;
 import com.poleesteel.rudazovmod.spell.resolve.EntityTargetResolver;
 import com.poleesteel.rudazovmod.spell.resolve.ItemTargetResolver;
@@ -43,6 +44,7 @@ public final class SpellEngine {
         registerResolver(new BlockTargetResolver());
         registerForm(new RayFormHandler());
         registerForm(new HoldFormHandler());
+        registerForm(new SelfFormHandler());
         SpellRegistry.registerDefaults();
     }
 

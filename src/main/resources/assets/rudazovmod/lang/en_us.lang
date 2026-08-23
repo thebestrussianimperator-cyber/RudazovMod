@@ -23,6 +23,7 @@ gui.rudazovmod.slot=Slot %s
 
 spell.rudazovmod.form.ray=Ray
 spell.rudazovmod.form.hold=Hold
+spell.rudazovmod.form.self=Self
 spell.rudazovmod.target.none=None
 spell.rudazovmod.target.entity=Entity
 spell.rudazovmod.target.item=Item

@@ -59,6 +59,12 @@ public final class SpellRegistry {
         register(new SpellDefinition(
                 new ResourceLocation(Tags.MODID, "test_drain"),
                 CastMode.CHANNEL, TargetType.ENTITY, Form.HOLD, SpellElement.LIFE, 1.0F));
+        register(new SpellDefinition(
+                new ResourceLocation(Tags.MODID, "test_self"),
+                CastMode.INSTANT, TargetType.NONE, Form.SELF, SpellElement.LIFE, 2.0F));
+        register(new SpellDefinition(
+                new ResourceLocation(Tags.MODID, "test_self_ward"),
+                CastMode.CHANNEL, TargetType.NONE, Form.SELF, SpellElement.FIRE, 1.0F));
     }
 
     public static Optional<SpellDefinition> get(ResourceLocation id) {

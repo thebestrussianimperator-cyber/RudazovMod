@@ -12,6 +12,7 @@ public final class SpellCost {
 
     public static final float RAY_MULT = 1.0F;
     public static final float HOLD_MULT = 1.25F;
+    public static final float SELF_MULT = 0.9F;
 
     private SpellCost() {}
 
@@ -43,6 +44,8 @@ public final class SpellCost {
         switch (form) {
             case HOLD:
                 return HOLD_MULT;
+            case SELF:
+                return SELF_MULT;
             case RAY:
             default:
                 return RAY_MULT;

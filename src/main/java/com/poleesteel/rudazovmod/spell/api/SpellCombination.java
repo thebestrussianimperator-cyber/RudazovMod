@@ -35,6 +35,9 @@ public final class SpellCombination {
                 return target == TargetType.ENTITY
                         || target == TargetType.ITEM
                         || target == TargetType.BLOCK;
+            case SELF:
+                return target == TargetType.NONE
+                        && (mode == CastMode.INSTANT || mode == CastMode.CHANNEL);
             default:
                 return false;
         }

@@ -105,7 +105,7 @@ public class GuiGrimoire extends GuiScreen {
 
         int cx = this.guiLeft + 168;
         int cy = this.guiTop + 58;
-        addEnumRow(ID_FORM, cx, cy, Form.values(), this.form, 58);
+        addEnumRow(ID_FORM, cx, cy, Form.values(), this.form, 52);
         cy += 20;
         addTargetRow(cx, cy);
         cy += 20;

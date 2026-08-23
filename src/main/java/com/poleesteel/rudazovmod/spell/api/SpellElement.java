@@ -215,6 +215,37 @@ public enum SpellElement {
     }
 
     /**
+     * Форма SELF. {@code burst} — INSTANT или первый импульс канала; иначе тик удержания.
+     */
+    public void onSelf(EntityLivingBase caster, float power, boolean burst) {
+        if (caster == null || !caster.isEntityAlive()) {
+            return;
+        }
+        int duration = burst ? (int) (300 * power) : 40;
+        switch (this) {
+            case LIFE:
+                caster.heal((burst ? 6.0F : 1.0F) * power);
+                break;
+            case FIRE:
+                caster.extinguish();
+                caster.addPotionEffect(new PotionEffect(MobEffects.FIRE_RESISTANCE, duration, 0, false, true));
+                if (burst) {
+                    caster.heal(2.0F * power);
+                }
+                break;
+            case ICE:
+                caster.addPotionEffect(new PotionEffect(MobEffects.RESISTANCE, duration, burst ? 1 : 0, false, true));
+                break;
+            case EARTH:
+                int hearts = Math.max(0, (int) power - 1);
+                caster.addPotionEffect(new PotionEffect(MobEffects.ABSORPTION, burst ? (int) (400 * power) : 40, hearts, false, true));
+                break;
+            default:
+                break;
+        }
+    }
+
+    /**
      * Удар RAY по блоку. {@code concentrated} — снаряд INSTANT; канал жжёт/морозит слабее и не копает землю.
      */
     public void onWorldHit(World world, BlockPos pos, EnumFacing face, float power,

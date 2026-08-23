@@ -5,5 +5,6 @@ package com.poleesteel.rudazovmod.spell.api;
  */
 public enum Form {
     RAY,
-    HOLD
+    HOLD,
+    SELF
 }
