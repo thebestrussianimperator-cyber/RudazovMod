@@ -3,10 +3,32 @@ tile.blood_iron_block.name=Блок кровавого железа
 tile.blood_iron_ore.name=Руда кровавого железа
 item.blood_chain.name=Цепь кровавого железа
 
-# Категория в настройках управления
 key.categories.rudazovmod=Rudazov Mod: Магия
-# Названия слотов
 key.rudazovmod.slot1=Слот заклинания 1
 key.rudazovmod.slot2=Слот заклинания 2
 key.rudazovmod.slot3=Слот заклинания 3
 key.rudazovmod.slot4=Слот заклинания 4
+key.rudazovmod.grimoire=Гримуар
+
+gui.rudazovmod.grimoire.title=Гримуар
+gui.rudazovmod.grimoire.spells=Заклинания
+gui.rudazovmod.grimoire.constructor=Конструктор
+gui.rudazovmod.grimoire.craft=Собрать
+gui.rudazovmod.grimoire.empty=(пусто)
+gui.rudazovmod.grimoire.power=Сила
+gui.rudazovmod.grimoire.cost=Стоимость
+gui.rudazovmod.grimoire.cost_once=(разово)
+gui.rudazovmod.grimoire.cost_tick=(за тик)
+gui.rudazovmod.slot=Слот %s
+
+spell.rudazovmod.form.ray=Луч
+spell.rudazovmod.form.hold=Захват
+spell.rudazovmod.target.none=Нет
+spell.rudazovmod.target.entity=Сущность
+spell.rudazovmod.target.item=Предмет
+spell.rudazovmod.target.block=Блок
+spell.rudazovmod.mode.instant=Мгновенно
+spell.rudazovmod.mode.channel=Канал
+spell.rudazovmod.element.fire=Огонь
+spell.rudazovmod.element.ice=Лёд
+spell.rudazovmod.element.earth=Земля

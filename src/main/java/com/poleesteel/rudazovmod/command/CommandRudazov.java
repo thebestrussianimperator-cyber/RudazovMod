@@ -10,6 +10,7 @@ import com.poleesteel.rudazovmod.spell.api.SpellDefinition;
 import com.poleesteel.rudazovmod.spell.api.SpellElement;
 import com.poleesteel.rudazovmod.spell.api.TargetType;
 import com.poleesteel.rudazovmod.network.PacketSyncSpirit;
+import com.poleesteel.rudazovmod.spell.engine.SpellBook;
 import com.poleesteel.rudazovmod.spell.engine.SpellEngine;
 import com.poleesteel.rudazovmod.spell.engine.SpellRegistry;
 import net.minecraft.command.CommandBase;
@@ -143,13 +144,11 @@ public class CommandRudazov extends CommandBase {
             return;
         }
         String id = spell.get().id().toString();
-        if (!spirit.ownsSpell(id)) {
+        if (!SpellBook.bind(player, slot, id)) {
             msg(player, TextFormatting.RED, "Сначала изучите это заклинание или соберите его через craft.");
             return;
         }
-        spirit.bindSpell(slot, id);
         msg(player, TextFormatting.GOLD, "Слот " + (slot + 1) + " привязан к: " + id);
-        PacketSyncSpirit.sendTo(player);
     }
 
     private static void craft(EntityPlayerMP player, IActiveSpirit spirit, String[] args) {
@@ -197,14 +196,16 @@ public class CommandRudazov extends CommandBase {
             return;
         }
 
-        SpellDefinition spell = SpellDefinition.createCustom(
-                mode.get(), target.get(), form.get(), element.get(), power);
-        spirit.putSpell(spell);
-        spirit.unlockSpell(spell.id().toString());
+        Optional<SpellDefinition> made = SpellBook.craft(
+                player, mode.get(), target.get(), form.get(), element.get(), power, -1);
+        if (!made.isPresent()) {
+            msg(player, TextFormatting.RED, "Не удалось собрать заклинание.");
+            return;
+        }
+        SpellDefinition spell = made.get();
         msg(player, TextFormatting.GREEN, "Собрано: " + spell.id());
         msg(player, TextFormatting.GRAY, formatSpell(spell));
         msg(player, TextFormatting.GRAY, "Привязка: /rudazovmod bind 1 " + spell.id());
-        PacketSyncSpirit.sendTo(player);
     }
 
     private static void list(EntityPlayerMP player, IActiveSpirit spirit) {

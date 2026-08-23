@@ -19,7 +19,7 @@
 
 ## Границы кода
 
-- Клиент: `client.render`, `client.input`, `client.render.hud`. Аннотации `@SideOnly(Side.CLIENT)` / `@Mod.EventBusSubscriber(Side.CLIENT)`.
+- Клиент: `client.render`, `client.input`, `client.render.hud`, `client.gui`. Аннотации `@SideOnly(Side.CLIENT)` / `@Mod.EventBusSubscriber(Side.CLIENT)`.
 - Серверная логика: `entities`, `magic` (старый прототип), `spell` (новый движок), `capabilities`. Рендер и ввод сюда не тащить.
 - Регистрация предметов/блоков/сущностей — `init.RegistryHandler`, не размазывать по классам предметов.
 - Сеть — `network`. Клиент в пакете каста шлёт **только номер слота**, никогда id спелла и никогда «я попал в X». Сервер сам решает.
@@ -31,13 +31,13 @@
 
 - Движок в `spell.*`. Игрок **конструирует** `SpellDefinition` из осей, не получает Java-класс спелла. `magic` — `MagicEventsHandler` (мана).
 - Ядро: `CastMode` × `TargetType` × `Form` × `SpellElement` × power. Cost считать из осей. Каст только через `SpellEngine`.
-- GUI сборки не делать, пока нет NBT определения, гримуара в capability и команды craft.
+- GUI сборки: `client.gui.GuiGrimoire`. Новые оси в GUI только если `SpellCombination.canCast`. Каст из GUI не слать — только craft/bind пакеты, каст по номеру слота.
 - `HOLD`+ENTITY/ITEM/BLOCK живые, но это **три** TargetType: не склеивать их в один спелл. Не предлагать в конструкторе комбинации, которых форма не умеет.
 - Одно заклинание = **один** `TargetType`. Не склеивать сущность, предмет и блок в один спелл.
 - `CHANNEL` — режим движка (удержание), не синоним телекинеза.
 - Не воскрешать удалённый прототип: `AbstractSpell`, `TelekinesisLogic`, `PacketUseMagic`, `CustomSpell`, `SpellTelekinesis`.
 - Id заклинаний в NBT и командах — полные `rudazovmod:name`. Строка без `:` считается namespace мода, не `minecraft:`.
-- Пока не закрыт план движка в `ARCHITECTURE.md` §7, не добавлять GUI крафта, новые параллельные системы каста и новые Entity «под каждую стихию».
+- Не добавлять новые параллельные системы каста и новые Entity «под каждую стихию».
 
 ## Стиль
 

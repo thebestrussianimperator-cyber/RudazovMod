@@ -1,5 +1,6 @@
 package com.poleesteel.rudazovmod.client.input;
 
+import com.poleesteel.rudazovmod.client.gui.GuiGrimoire;
 import com.poleesteel.rudazovmod.network.PacketCastSpell;
 import com.poleesteel.rudazovmod.network.PacketHandler;
 import com.poleesteel.rudazovmod.network.PacketStopCast;
@@ -20,18 +21,18 @@ public class KeyBindHandler {
     public static final KeyBinding SPELL_SLOT_2 = new KeyBinding("key.rudazovmod.slot2", Keyboard.KEY_X, "key.categories.rudazovmod");
     public static final KeyBinding SPELL_SLOT_3 = new KeyBinding("key.rudazovmod.slot3", Keyboard.KEY_C, "key.categories.rudazovmod");
     public static final KeyBinding SPELL_SLOT_4 = new KeyBinding("key.rudazovmod.slot4", Keyboard.KEY_V, "key.categories.rudazovmod");
+    public static final KeyBinding OPEN_GRIMOIRE = new KeyBinding("key.rudazovmod.grimoire", Keyboard.KEY_G, "key.categories.rudazovmod");
 
-    private static final KeyBinding[] SLOTS = {SPELL_SLOT_1, SPELL_SLOT_2, SPELL_SLOT_3, SPELL_SLOT_4};
+    public static final KeyBinding[] SLOTS = {SPELL_SLOT_1, SPELL_SLOT_2, SPELL_SLOT_3, SPELL_SLOT_4};
 
     /** -1 = ничего не зажато. Один слот за раз. */
     private static int heldSlot = -1;
 
     public static void init() {
         for (KeyBinding key : SLOTS) {
-            if (key != null) {
-                ClientRegistry.registerKeyBinding(key);
-            }
+            ClientRegistry.registerKeyBinding(key);
         }
+        ClientRegistry.registerKeyBinding(OPEN_GRIMOIRE);
     }
 
     @SubscribeEvent
@@ -41,7 +42,11 @@ public class KeyBindHandler {
             return;
         }
         Minecraft mc = Minecraft.getMinecraft();
-        if (mc.player == null || mc.world == null || mc.isGamePaused()) {
+        if (mc.player != null && mc.world != null && mc.currentScreen == null && OPEN_GRIMOIRE.isPressed()) {
+            mc.displayGuiScreen(new GuiGrimoire());
+        }
+
+        if (mc.player == null || mc.world == null || mc.isGamePaused() || mc.currentScreen != null) {
             if (heldSlot >= 0) {
                 PacketHandler.INSTANCE.sendToServer(new PacketStopCast());
                 heldSlot = -1;

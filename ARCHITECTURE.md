@@ -26,6 +26,8 @@
 * `RenderBloodChain` — клиентский процедурный OpenGL-рендерер для `EntityBloodChain`.
 * `RenderSpellProjectile` — биллборд без текстуры, цвет из `SpellElement`.
 * `ManaHudOverlay` — полоска маны справа от центра, над голодом. Скрыта в креативе.
+* `SpellSlotHud` — четыре слота Z/X/C/V слева внизу.
+* `GuiGrimoire` — сборка из осей и привязка к слотам (клавиша G).
 
 ### Capabilities игрока
 * `IActiveSpirit` / `ActiveSpiritData` — мана, максимум маны, уровень чакр, множество изученных заклинаний, 4 слота хотбара.
@@ -65,7 +67,7 @@ Capability `IActiveSpirit`:
 
 ### 4.2. Каст
 
-1. Клавиши Z/X/C/V: START (`PacketCastSpell`) на нажатие слота, STOP (`PacketStopCast`) на отпускание. Один слот за раз.
+1. Клавиши Z/X/C/V: START (`PacketCastSpell`) на нажатие слота, STOP (`PacketStopCast`) на отпускание. Один слот за раз. G открывает `GuiGrimoire`.
 2. Сервер читает bind, ищет определение в гримуаре затем в `SpellRegistry`, проверяет `ownsSpell`, кастует через `SpellEngine`.
 3. Команды: `/rudazovmod unlock <all|spell_id>`, `/rudazovmod bind <1-4> <spell_id>`, `/rudazovmod craft <mode> <target> <form> <element> <power>`, `/rudazovmod list`. Id без `:` → namespace `rudazovmod`. `craft` пишет в гримуар id `rudazovmod:custom/<uuid>`, не в статический реестр.
 4. Тестовые записи: `test_ray` (FIRE, INSTANT, RAY, NONE), `test_ice` (ICE, INSTANT, RAY, NONE), `test_beam` (FIRE, CHANNEL, RAY, NONE), `test_hold` (EARTH, CHANNEL, HOLD, ENTITY), `test_hold_item` (HOLD+ITEM), `test_hold_block` (HOLD+BLOCK).
@@ -85,12 +87,12 @@ Capability `IActiveSpirit`:
 ### 4.5. Ещё нет
 
 * Кулдаун заклинаний (есть только у предмета цепи).
-* GUI сборки и GUI слотов.
+* Прогрессия осей (пока конструктор показывает всю матрицу `canCast`).
 
 ## 5. Особенности архитектуры (общее)
 
 * Регистрация (`RegistryHandler` в пакете `init`): ванильные события Forge (`@SubscribeEvent`). Предметы, `EntityEntryBuilder`, модели и рендереры (`@SideOnly(Side.CLIENT)` + `RenderingRegistry`).
-* Жёсткое разделение: визуал в `client.render` / `client.input` / `client.render.hud`, серверная физика в `entities`, `spell`, `magic` (мана/capabilities). Сеть в `network`.
+* Жёсткое разделение: визуал в `client.render` / `client.input` / `client.render.hud` / `client.gui`, серверная физика в `entities`, `spell`, `magic` (мана/capabilities). Сеть в `network`.
 * Авторитет сервера: клиент шлёт только номер слота, никогда id заклинания и никогда «я попал».
 * Не плодить Event-хендлеры ради логики одного предмета или одного спелла. Исключение — тики маны, capabilities, ввод, HUD.
 
@@ -201,6 +203,8 @@ Capability `IActiveSpirit`:
 | `PacketStopCast` | C→S | отпускание CHANNEL |
 | `PacketSyncMana` | S→C | мана / max / чакры, каждые 5 тиков |
 | `PacketSyncSpirit` | S→C | unlock + binds + гримуар (id пакета 3). Не каждый тик. |
+| `PacketCraftSpell` | C→S | оси + power + слот (−1 = без bind). Id выдаёт сервер. |
+| `PacketBindSpell` | C→S | slot + id уже существующего определения. Сервер проверяет `ownsSpell`. |
 
 Клиент не сообщает цель. Сервер резолвит её по `TargetType` спелла из слота.
 
@@ -259,9 +263,9 @@ Capability `IActiveSpirit`:
 2. Гримуар в `IActiveSpirit`, каст из него, `/rudazovmod craft` и `list` — **сделано**.
 3. Матрица `HOLD`+ITEM и `HOLD`+BLOCK — **сделано** (`SpellCombination.isImplemented`, пресеты `test_hold_item` / `test_hold_block`).
 4. Синк гримуара на клиент — **сделано** (`PacketSyncSpirit`).
-5. GUI сборки (GuiScreen 1.12.2) и GUI слотов. **следующий**
+5. GUI сборки и слотов — **сделано** (`GuiGrimoire`, `SpellSlotHud`, `PacketCraftSpell` / `PacketBindSpell`). План §7 закрыт.
 
-Гримуар на клиенте уже есть. GUI — последний шаг: сборка и отображение слотов.
+Конструктор предлагает только `SpellCombination.canCast`. Каст по-прежнему шлёт только номер слота.
 
 ## 8. Что не делать
 

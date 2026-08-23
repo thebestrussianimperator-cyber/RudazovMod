@@ -2,3 +2,33 @@ item.blood_iron_ingot.name=Blood Iron Ingot
 tile.blood_iron_block.name=Block of Blood Iron
 tile.blood_iron_ore.name=Blood Iron Ore
 item.blood_chain.name=Blood Chain
+
+key.categories.rudazovmod=Rudazov Mod: Magic
+key.rudazovmod.slot1=Spell slot 1
+key.rudazovmod.slot2=Spell slot 2
+key.rudazovmod.slot3=Spell slot 3
+key.rudazovmod.slot4=Spell slot 4
+key.rudazovmod.grimoire=Grimoire
+
+gui.rudazovmod.grimoire.title=Grimoire
+gui.rudazovmod.grimoire.spells=Spells
+gui.rudazovmod.grimoire.constructor=Constructor
+gui.rudazovmod.grimoire.craft=Craft
+gui.rudazovmod.grimoire.empty=(empty)
+gui.rudazovmod.grimoire.power=Power
+gui.rudazovmod.grimoire.cost=Cost
+gui.rudazovmod.grimoire.cost_once=(once)
+gui.rudazovmod.grimoire.cost_tick=(per tick)
+gui.rudazovmod.slot=Slot %s
+
+spell.rudazovmod.form.ray=Ray
+spell.rudazovmod.form.hold=Hold
+spell.rudazovmod.target.none=None
+spell.rudazovmod.target.entity=Entity
+spell.rudazovmod.target.item=Item
+spell.rudazovmod.target.block=Block
+spell.rudazovmod.mode.instant=Instant
+spell.rudazovmod.mode.channel=Channel
+spell.rudazovmod.element.fire=Fire
+spell.rudazovmod.element.ice=Ice
+spell.rudazovmod.element.earth=Earth

@@ -13,5 +13,7 @@ public class PacketHandler {
         INSTANCE.registerMessage(PacketCastSpell.Handler.class, PacketCastSpell.class, id++, Side.SERVER);
         INSTANCE.registerMessage(PacketStopCast.Handler.class, PacketStopCast.class, id++, Side.SERVER);
         INSTANCE.registerMessage(PacketSyncSpirit.Handler.class, PacketSyncSpirit.class, id++, Side.CLIENT);
+        INSTANCE.registerMessage(PacketCraftSpell.Handler.class, PacketCraftSpell.class, id++, Side.SERVER);
+        INSTANCE.registerMessage(PacketBindSpell.Handler.class, PacketBindSpell.class, id++, Side.SERVER);
     }
 }
