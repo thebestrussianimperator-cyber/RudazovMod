@@ -68,13 +68,15 @@ Capability `IActiveSpirit`:
 1. Клавиши Z/X/C/V: START (`PacketCastSpell`) на нажатие слота, STOP (`PacketStopCast`) на отпускание. Один слот за раз.
 2. Сервер читает bind, ищет определение в гримуаре затем в `SpellRegistry`, проверяет `ownsSpell`, кастует через `SpellEngine`.
 3. Команды: `/rudazovmod unlock <all|spell_id>`, `/rudazovmod bind <1-4> <spell_id>`, `/rudazovmod craft <mode> <target> <form> <element> <power>`, `/rudazovmod list`. Id без `:` → namespace `rudazovmod`. `craft` пишет в гримуар id `rudazovmod:custom/<uuid>`, не в статический реестр.
-4. Тестовые записи: `test_ray` (FIRE, INSTANT, RAY, NONE), `test_ice` (ICE, INSTANT, RAY, NONE), `test_beam` (FIRE, CHANNEL, RAY, NONE), `test_hold` (EARTH, CHANNEL, HOLD, ENTITY).
+4. Тестовые записи: `test_ray` (FIRE, INSTANT, RAY, NONE), `test_ice` (ICE, INSTANT, RAY, NONE), `test_beam` (FIRE, CHANNEL, RAY, NONE), `test_hold` (EARTH, CHANNEL, HOLD, ENTITY), `test_hold_item` (HOLD+ITEM), `test_hold_block` (HOLD+BLOCK).
 
 ### 4.3. Формы и стихия
 
 * `SpellElement` в `spell.api`: FIRE / ICE / EARTH. `onHit(target, power, source)`.
 * `RAY` INSTANT + NONE — спавн `EntitySpellProjectile`. CHANNEL + NONE — луч по взгляду (частицы, `onHit` раз в 5 тиков).
-* `HOLD` + ENTITY — тянет цель в 4 блоках перед глазами. ITEM/BLOCK у `HOLD` пока no-op.
+* `HOLD` + ENTITY — тянет цель в 4 блоках перед глазами.
+* `HOLD` + ITEM — то же для `EntityItem`, pickup запрещён на время канала.
+* `HOLD` + BLOCK — вынуть блок (state + TE NBT), нести (частицы), поставить по взгляду; иначе вернуть на origin, иначе дроп. Не bedrock/двери/кровати/порталы; `BreakEvent` и `isBlockModifiable`.
 
 ### 4.4. Удалено при чистке прототипа
 
@@ -84,7 +86,6 @@ Capability `IActiveSpirit`:
 
 * Кулдаун заклинаний (есть только у предмета цепи).
 * Синк unlock/bind/гримуара на клиент (GUI хотбара).
-* `HOLD` для ITEM/BLOCK.
 
 ## 5. Особенности архитектуры (общее)
 
@@ -102,7 +103,7 @@ Capability `IActiveSpirit`:
 * `spell.api` — `CastMode` (INSTANT, CHANNEL), `TargetType` (NONE, ENTITY, ITEM, BLOCK), `Form` (RAY, HOLD), `SpellDefinition` (record: id, оси, power; `cost()` из осей; `writeNBT`/`readNBT`), `SpellCost`, `SpellCombination`, `SpellTarget` (закрытый набор nested-record’ов Entity/Item/Block/None; `sealed` Jabel 1.0.1 не умеет), `CastContext`, `TargetResolver`, `FormHandler`.
 * `spell.engine` — `SpellEngine` (`startCast` / `tick` / `endCast`, отказ `!canCast`), `SpellRegistry` (`registerDefaults()` — пресеты), `ActiveCastTracker` (один CHANNEL на игрока).
 * `spell.resolve` — `None` / `Entity` / `Item` / `Block` резолверы. ITEM — только `EntityItem`. ENTITY — не дроп. BLOCK — `RayTraceResult` (BlockHitResult в 1.12.2 нет).
-* `spell.form` — `RayFormHandler`, `HoldFormHandler` (`HOLD`+ENTITY живой; ITEM/BLOCK — no-op).
+* `spell.form` — `RayFormHandler`, `HoldFormHandler` (`HOLD`+ENTITY/ITEM/BLOCK).
 
 Хотбар (Z/X/C/V) шлёт START на нажатие слота и STOP на отпускание. Сервер: unlock/bind → `SpellEngine`.
 
@@ -158,12 +159,12 @@ Capability `IActiveSpirit`:
 * `hold` + `ITEM` + CHANNEL — дроп
 * `hold` + `BLOCK` + CHANNEL — блок (скорее всего отдельная реализация формы `HOLD_BLOCK`, потому что тик другой; это всё ещё форма движка, не «уникальный спелл»)
 
-Игроку это три заклинания. Движку — `HOLD` + три `TargetType`. Записи в реестр не класть, пока формы — заглушки.
+Игроку это три заклинания. Движку — `HOLD` + три `TargetType`. Пресеты: `test_hold`, `test_hold_item`, `test_hold_block`.
 
 ### 6.4. Режимы каста
 
 * **INSTANT** — клиент шлёт пакет по фронту нажатия (`isPressed`). Один каст: снаряд, волна, самобафф.
-* **CHANNEL** — START при нажатии, STOP при отпускании / смерти / потере цели / нулевой мане. Состояние: `ActiveCastTracker.ActiveCast { spell (снимок), startTick, SpellTarget }`. Каждый серверный тик: `isStillValid` → списание маны → `form.onTick`.
+* **CHANNEL** — START при нажатии, STOP при отпускании / смерти / потере цели / нулевой мане. Состояние: `ActiveCastTracker.ActiveCast { spell (снимок), startTick, SpellTarget }`. Каждый серверный тик: `isStillValid` или `form.isTargetStillHeld` (вынутый блок) → списание маны → `form.onTick`.
 * **CHARGE** — не в первой итерации.
 
 `CHANNEL` — про удержание кнопки, не про телекинез. Первая проверка канала в движке может быть «луч/волна, пока держишь», без захвата мобов.
@@ -179,7 +180,7 @@ Capability `IActiveSpirit`:
 ### 6.6. Формы
 
 * `RAY` — снаряд (INSTANT + NONE) или луч по взгляду (CHANNEL).
-* `HOLD` — удержание `ENTITY` перед кастером. ITEM/BLOCK не реализованы.
+* `HOLD` — удержание `ENTITY`/`ITEM` перед кастером; `BLOCK` вынимается из мира и ставится по отпусканию.
 
 Стихия задаёт `onHit`, не доставку.
 
@@ -227,14 +228,14 @@ Capability `IActiveSpirit`:
 * Собранные игроком — NBT в capability (гримуар): список `SpellDefinition`.
 * Id кастома: `rudazovmod:custom/<uuid>` или индекс в гримуаре. Каст: достать определение → `SpellEngine.startCast(player, definition)` без обязательной записи в статический реестр.
 
-`SpellDefinition` сериализуется через `writeNBT` / `readNBT` (id, оси, power). Id без `:` → namespace мода. Стоимость **считать** из осей (`SpellCost`), не хардкодить и не доверять NBT. Незаконная комбинация не создаётся (компактный конструктор), некастуемая (`HOLD`+ITEM/BLOCK и мусор) отвергается `SpellEngine` / `SpellRegistry.register` / `craft`.
+`SpellDefinition` сериализуется через `writeNBT` / `readNBT` (id, оси, power). Id без `:` → namespace мода. Стоимость **считать** из осей (`SpellCost`), не хардкодить и не доверять NBT. Незаконная комбинация не создаётся (компактный конструктор), мусор отвергается `SpellEngine` / `SpellRegistry.register` / `craft`.
 
 Гримуар в `IActiveSpirit` (NBT-ключ `Grimoire`). Каст: `findDefinition` → `SpellEngine.startCast(player, definition)` без записи кастома в статический реестр. `craft` создаёт `rudazovmod:custom/<uuid>`, кладёт в гримуар и unlock.
 
 ### 7.2. Какие комбинации вообще законны
 
 Конструктор показывает только валидные пары. Движок отвергает остальное при касте.
-`SpellCombination.isLegal` — таблица ниже (включая ещё недобитые HOLD+ITEM/BLOCK). `isImplemented` / `canCast` — форма уже доставляет эффект; GUI и `/craft` опираются на это.
+`SpellCombination.isLegal` / `isImplemented` / `canCast` — текущая матрица целиком кастуется. GUI и `/craft` опираются на это.
 
 | Form | TargetType | CastMode | Смысл | Сейчас в коде |
 |---|---|---|---|---|
@@ -242,8 +243,8 @@ Capability `IActiveSpirit`:
 | RAY | NONE | CHANNEL | луч по взгляду | да |
 | RAY | ENTITY | INSTANT | хитскан в моба | частично (ветка есть) |
 | HOLD | ENTITY | CHANNEL | телекинез моба | да |
-| HOLD | ITEM | CHANNEL | телекинез дропа | нет |
-| HOLD | BLOCK | CHANNEL | нести блок | нет |
+| HOLD | ITEM | CHANNEL | телекинез дропа | да |
+| HOLD | BLOCK | CHANNEL | нести блок | да |
 
 Бессмысленные (не предлагать в GUI): `HOLD`+`NONE`, `HOLD`+`INSTANT`, `RAY`+`ITEM` пока нет эффекта на дроп.
 
@@ -257,11 +258,11 @@ Capability `IActiveSpirit`:
 
 1. NBT у `SpellDefinition`, формула маны, валидатор комбинаций — **сделано** (`writeNBT`/`readNBT`, `SpellCost`, `SpellCombination`).
 2. Гримуар в `IActiveSpirit`, каст из него, `/rudazovmod craft` и `list` — **сделано**.
-3. Добить матрицу: `HOLD`+`ITEM`, затем `HOLD`+`BLOCK`. Иначе конструктор врёт («выбрал блок — ничего»). При появлении эффекта — включить пару в `SpellCombination.isImplemented`. **следующий**
-4. Синк гримуара на клиент.
-5. GUI сборки (GuiScreen 1.12.2) и GUI слотов. Не раньше пункта 2.
+3. Матрица `HOLD`+ITEM и `HOLD`+BLOCK — **сделано** (`SpellCombination.isImplemented`, пресеты `test_hold_item` / `test_hold_block`).
+4. Синк гримуара на клиент. **следующий**
+5. GUI сборки (GuiScreen 1.12.2) и GUI слотов. Не раньше пункта 4.
 
-Не начинать с верстака/GUI: движок ещё не умеет сохранить и кастануть произвольную комбинацию.
+Не начинать GUI, пока гримуар не синкается на клиент (пункт 4). Произвольную комбинацию уже можно сохранить и кастануть через `craft`.
 
 ## 8. Что не делать
 

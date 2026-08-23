@@ -47,6 +47,12 @@ public final class SpellRegistry {
         register(new SpellDefinition(
                 new ResourceLocation(Tags.MODID, "test_hold"),
                 CastMode.CHANNEL, TargetType.ENTITY, Form.HOLD, SpellElement.EARTH, 1.0F));
+        register(new SpellDefinition(
+                new ResourceLocation(Tags.MODID, "test_hold_item"),
+                CastMode.CHANNEL, TargetType.ITEM, Form.HOLD, SpellElement.EARTH, 1.0F));
+        register(new SpellDefinition(
+                new ResourceLocation(Tags.MODID, "test_hold_block"),
+                CastMode.CHANNEL, TargetType.BLOCK, Form.HOLD, SpellElement.EARTH, 1.0F));
     }
 
     public static Optional<SpellDefinition> get(ResourceLocation id) {

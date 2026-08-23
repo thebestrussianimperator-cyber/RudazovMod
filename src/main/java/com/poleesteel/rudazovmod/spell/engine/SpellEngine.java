@@ -109,6 +109,10 @@ public final class SpellEngine {
             endCast(caster);
         }
 
+        if (!handler.canStart(context)) {
+            return false;
+        }
+
         if (spell.castMode() == CastMode.INSTANT) {
             if (!tryConsume(caster, spell.cost())) {
                 return false;
@@ -151,7 +155,9 @@ public final class SpellEngine {
                 .withTarget(cast.target())
                 .withTicksHeld(Math.max(0, caster.ticksExisted - cast.startTick()));
 
-        if (!resolver.isStillValid(context, cast.target()) || !tryConsume(caster, spell.cost())) {
+        boolean targetHeld = resolver.isStillValid(context, cast.target())
+                || handler.isTargetStillHeld(context);
+        if (!targetHeld || !tryConsume(caster, spell.cost())) {
             endCast(caster);
             return;
         }

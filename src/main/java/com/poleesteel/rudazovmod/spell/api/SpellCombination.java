@@ -45,16 +45,10 @@ public final class SpellCombination {
     }
 
     /**
-     * Форма реально доставляет эффект. {@code HOLD}+ITEM/BLOCK пока no-op — не кастовать.
+     * Форма реально доставляет эффект. Текущая матрица §7.2 целиком кастуется.
      */
     public static boolean isImplemented(Form form, TargetType target, CastMode mode) {
-        if (!isLegal(form, target, mode)) {
-            return false;
-        }
-        if (form == Form.HOLD) {
-            return target == TargetType.ENTITY;
-        }
-        return true;
+        return isLegal(form, target, mode);
     }
 
     public static boolean canCast(SpellDefinition spell) {

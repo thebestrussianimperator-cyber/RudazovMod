@@ -9,4 +9,14 @@ public interface FormHandler {
     void onTick(CastContext context);
 
     void onEnd(CastContext context);
+
+    /** Цель в мире уже исчезла, но форма её ещё держит (вынутый блок). */
+    default boolean isTargetStillHeld(CastContext context) {
+        return false;
+    }
+
+    /** Отказ до списания маны и TRACKER.begin: незахватываемый блок и т.п. */
+    default boolean canStart(CastContext context) {
+        return true;
+    }
 }

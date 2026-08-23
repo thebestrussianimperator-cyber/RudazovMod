@@ -32,7 +32,7 @@
 - Движок в `spell.*`. Игрок **конструирует** `SpellDefinition` из осей, не получает Java-класс спелла. `magic` — `MagicEventsHandler` (мана).
 - Ядро: `CastMode` × `TargetType` × `Form` × `SpellElement` × power. Cost считать из осей. Каст только через `SpellEngine`.
 - GUI сборки не делать, пока нет NBT определения, гримуара в capability и команды craft.
-- `HOLD` для ITEM/BLOCK ещё нет — не склеивать их с ENTITY. Не предлагать в конструкторе комбинации, которых форма не умеет.
+- `HOLD`+ENTITY/ITEM/BLOCK живые, но это **три** TargetType: не склеивать их в один спелл. Не предлагать в конструкторе комбинации, которых форма не умеет.
 - Одно заклинание = **один** `TargetType`. Не склеивать сущность, предмет и блок в один спелл.
 - `CHANNEL` — режим движка (удержание), не синоним телекинеза.
 - Не воскрешать удалённый прототип: `AbstractSpell`, `TelekinesisLogic`, `PacketUseMagic`, `CustomSpell`, `SpellTelekinesis`.
