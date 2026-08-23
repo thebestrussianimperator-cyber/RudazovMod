@@ -4,6 +4,7 @@ import com.poleesteel.rudazovmod.capabilities.ActiveSpiritProvider;
 import com.poleesteel.rudazovmod.capabilities.IActiveSpirit;
 import com.poleesteel.rudazovmod.network.PacketHandler;
 import com.poleesteel.rudazovmod.network.PacketSyncMana;
+import com.poleesteel.rudazovmod.spell.engine.SpellEngine;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.EntityPlayer;
@@ -12,6 +13,7 @@ import java.util.Map;
 import net.minecraftforge.event.AttachCapabilitiesEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import net.minecraftforge.fml.common.gameevent.PlayerEvent.PlayerLoggedOutEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 
 public class MagicEventsHandler {
@@ -28,6 +30,8 @@ public class MagicEventsHandler {
     @SubscribeEvent
     public void onPlayerTick(TickEvent.PlayerTickEvent event) {
         if (!event.player.world.isRemote && event.phase == TickEvent.Phase.END) {
+            SpellEngine.tick(event.player);
+
             IActiveSpirit spirit = event.player.getCapability(ActiveSpiritProvider.ACTIVE_SPIRIT_CAP, null);
             if (spirit != null) {
                 spirit.regenerate();
@@ -47,6 +51,8 @@ public class MagicEventsHandler {
     @SubscribeEvent
     public void onPlayerClone(PlayerEvent.Clone event) {
         if (event.isWasDeath()) {
+            SpellEngine.endCast(event.getOriginal());
+
             IActiveSpirit oldSpirit = event.getOriginal().getCapability(ActiveSpiritProvider.ACTIVE_SPIRIT_CAP, null);
             IActiveSpirit newSpirit = event.getEntityPlayer().getCapability(ActiveSpiritProvider.ACTIVE_SPIRIT_CAP, null);
 
@@ -67,5 +73,10 @@ public class MagicEventsHandler {
                 }
             }
         }
+    }
+
+    @SubscribeEvent
+    public void onLogout(PlayerLoggedOutEvent event) {
+        SpellEngine.endCast(event.player);
     }
 }

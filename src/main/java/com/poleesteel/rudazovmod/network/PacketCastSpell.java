@@ -1,14 +1,17 @@
 package com.poleesteel.rudazovmod.network;
 
+import com.poleesteel.rudazovmod.capabilities.ActiveSpiritProvider;
+import com.poleesteel.rudazovmod.capabilities.IActiveSpirit;
+import com.poleesteel.rudazovmod.spell.api.SpellDefinition;
+import com.poleesteel.rudazovmod.spell.engine.SpellEngine;
+import com.poleesteel.rudazovmod.spell.engine.SpellRegistry;
 import io.netty.buffer.ByteBuf;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessageHandler;
 import net.minecraftforge.fml.common.network.simpleimpl.MessageContext;
-import com.poleesteel.rudazovmod.capabilities.ActiveSpiritProvider;
-import com.poleesteel.rudazovmod.capabilities.IActiveSpirit;
-import com.poleesteel.rudazovmod.magic.AbstractSpell;
-import com.poleesteel.rudazovmod.magic.SpellRegistry;
+
+import java.util.Optional;
 
 public class PacketCastSpell implements IMessage {
     private int slotIndex;
@@ -34,19 +37,26 @@ public class PacketCastSpell implements IMessage {
         public IMessage onMessage(PacketCastSpell message, MessageContext ctx) {
             EntityPlayerMP player = ctx.getServerHandler().player;
             player.getServerWorld().addScheduledTask(() -> {
-
-                IActiveSpirit spirit = player.getCapability(ActiveSpiritProvider.ACTIVE_SPIRIT_CAP, null);
-                if (spirit != null) {
-                    // СЕРВЕР сам проверяет, что лежит в этом слоте и изучено ли оно!
-                    String spellId = spirit.getBoundSpell(message.slotIndex);
-
-                    if (spellId != null && !spellId.isEmpty() && spirit.isSpellUnlocked(spellId)) {
-                        AbstractSpell spell = SpellRegistry.getSpell(spellId);
-                        if (spell != null) {
-                            spell.execute(player); // Запускаем магию!
-                        }
-                    }
+                if (message.slotIndex < 0 || message.slotIndex > 3) {
+                    return;
                 }
+                IActiveSpirit spirit = player.getCapability(ActiveSpiritProvider.ACTIVE_SPIRIT_CAP, null);
+                if (spirit == null) {
+                    return;
+                }
+                String spellId = spirit.getBoundSpell(message.slotIndex);
+                if (spellId == null || spellId.isEmpty()) {
+                    return;
+                }
+                Optional<SpellDefinition> spell = SpellRegistry.get(spellId);
+                if (!spell.isPresent()) {
+                    return;
+                }
+                String canonical = spell.get().id().toString();
+                if (!spirit.isSpellUnlocked(spellId) && !spirit.isSpellUnlocked(canonical)) {
+                    return;
+                }
+                SpellEngine.startCast(player, spell.get());
             });
             return null;
         }

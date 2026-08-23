@@ -1,6 +1,6 @@
 package com.poleesteel.rudazovmod.entities;
 
-import com.poleesteel.rudazovmod.magic.crafting.SpellElement;
+import com.poleesteel.rudazovmod.spell.api.SpellElement;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.projectile.EntityThrowable;
 import net.minecraft.network.datasync.DataParameter;
@@ -27,7 +27,7 @@ public class EntitySpellProjectile extends EntityThrowable {
         this.setElement(element);
 
         // Задаем скорость и точность полета (2.5F — летит быстрее стрелы!)
-        this.shoot(throwerIn, throwerIn.rotationPitch, throwerIn.rotationYaw, 0.0F, 2.5F, 0.5F);
+        this.shoot(throwerIn, throwerIn.rotationPitch, throwerIn.rotationYaw, 0.0F, 2.5F, 0.0F);
     }
 
     @Override
@@ -79,7 +79,7 @@ public class EntitySpellProjectile extends EntityThrowable {
         if (!this.world.isRemote) {
             // Если попали по живому существу — вызываем логику стихии (урон, поджог, заморозка)
             if (result.typeOfHit == RayTraceResult.Type.ENTITY && result.entityHit instanceof EntityLivingBase) {
-                getElement().onHit((EntityLivingBase) result.entityHit, this.power);
+                getElement().onHit((EntityLivingBase) result.entityHit, this.power, this.getThrower());
             }
             // Исчезаем при ударе о моба или стену
             this.setDead();
