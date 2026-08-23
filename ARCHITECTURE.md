@@ -59,7 +59,7 @@
 Capability `IActiveSpirit`:
 * Стартовые значения: 50 / 100 маны, уровень чакр 1.
 * Реген: `+0.05F * chakraLevel` за тик на сервере (`TickEvent.PlayerTickEvent`, фаза END).
-* Синхронизация маны на клиент: `PacketSyncMana` раз в 5 тиков. Изученные заклинания и бинды на клиент **не** синкаются (клиенту для каста достаточно номера слота).
+* Синхронизация маны на клиент: `PacketSyncMana` раз в 5 тиков. Гримуар / unlock / bind: `PacketSyncSpirit` на логин, респавн, смену измерения и после `unlock`/`bind`/`craft`. Каст по-прежнему шлёт только номер слота.
 * Смерть / клон игрока: `PlayerEvent.Clone` копирует spirit через `IStorage.writeNBT/readNBT` (мана, чакры, unlock, bind, гримуар).
 * Прокачка: `upgradeChakras()` увеличивает уровень и `maxMana += 50`. Вызова из геймплея пока нет.
 
@@ -85,7 +85,7 @@ Capability `IActiveSpirit`:
 ### 4.5. Ещё нет
 
 * Кулдаун заклинаний (есть только у предмета цепи).
-* Синк unlock/bind/гримуара на клиент (GUI хотбара).
+* GUI сборки и GUI слотов.
 
 ## 5. Особенности архитектуры (общее)
 
@@ -186,11 +186,10 @@ Capability `IActiveSpirit`:
 
 ### 6.7. Состояние игрока (расширение capability)
 
-Есть: мана, maxMana, chakraLevel, unlocked, bound[4], гримуар (список `SpellDefinition`).
+Есть: мана, maxMana, chakraLevel, unlocked, bound[4], гримуар (список `SpellDefinition`). Клиент получает книгу через `PacketSyncSpirit`.
 
 Добавить позже:
 * кулдаун по spellId
-* для GUI слотов — полная синхронизация spirit, не только мана
 
 Идентификаторы в NBT всегда полные `rudazovmod:id`. Парсер: если нет `:`, подставлять namespace мода.
 
@@ -199,9 +198,9 @@ Capability `IActiveSpirit`:
 | Пакет | Сторона | Назначение |
 |---|---|---|
 | `PacketCastSpell` | C→S | INSTANT: slotIndex. Либо START channel |
-| `PacketStopCast` (новый) | C→S | отпускание CHANNEL |
-| `PacketSyncMana` | S→C | мана / max / чакры (уже есть) |
-| `PacketSyncSpirit` (позже) | S→C | unlock + binds для GUI |
+| `PacketStopCast` | C→S | отпускание CHANNEL |
+| `PacketSyncMana` | S→C | мана / max / чакры, каждые 5 тиков |
+| `PacketSyncSpirit` | S→C | unlock + binds + гримуар (id пакета 3). Не каждый тик. |
 
 Клиент не сообщает цель. Сервер резолвит её по `TargetType` спелла из слота.
 
@@ -259,10 +258,10 @@ Capability `IActiveSpirit`:
 1. NBT у `SpellDefinition`, формула маны, валидатор комбинаций — **сделано** (`writeNBT`/`readNBT`, `SpellCost`, `SpellCombination`).
 2. Гримуар в `IActiveSpirit`, каст из него, `/rudazovmod craft` и `list` — **сделано**.
 3. Матрица `HOLD`+ITEM и `HOLD`+BLOCK — **сделано** (`SpellCombination.isImplemented`, пресеты `test_hold_item` / `test_hold_block`).
-4. Синк гримуара на клиент. **следующий**
-5. GUI сборки (GuiScreen 1.12.2) и GUI слотов. Не раньше пункта 4.
+4. Синк гримуара на клиент — **сделано** (`PacketSyncSpirit`).
+5. GUI сборки (GuiScreen 1.12.2) и GUI слотов. **следующий**
 
-Не начинать GUI, пока гримуар не синкается на клиент (пункт 4). Произвольную комбинацию уже можно сохранить и кастануть через `craft`.
+Гримуар на клиенте уже есть. GUI — последний шаг: сборка и отображение слотов.
 
 ## 8. Что не делать
 

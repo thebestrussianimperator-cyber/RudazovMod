@@ -9,6 +9,7 @@ import com.poleesteel.rudazovmod.spell.api.SpellCombination;
 import com.poleesteel.rudazovmod.spell.api.SpellDefinition;
 import com.poleesteel.rudazovmod.spell.api.SpellElement;
 import com.poleesteel.rudazovmod.spell.api.TargetType;
+import com.poleesteel.rudazovmod.network.PacketSyncSpirit;
 import com.poleesteel.rudazovmod.spell.engine.SpellEngine;
 import com.poleesteel.rudazovmod.spell.engine.SpellRegistry;
 import net.minecraft.command.CommandBase;
@@ -110,6 +111,7 @@ public class CommandRudazov extends CommandBase {
                 spirit.unlockSpell(spell.id().toString());
             }
             msg(player, TextFormatting.GREEN, "Вы изучили все пресеты реестра.");
+            PacketSyncSpirit.sendTo(player);
             return;
         }
         Optional<SpellDefinition> spell = SpellEngine.findDefinition(player, rawId);
@@ -120,6 +122,7 @@ public class CommandRudazov extends CommandBase {
         String id = spell.get().id().toString();
         spirit.unlockSpell(id);
         msg(player, TextFormatting.GREEN, "Заклинание изучено: " + id);
+        PacketSyncSpirit.sendTo(player);
     }
 
     private static void bind(EntityPlayerMP player, IActiveSpirit spirit, String slotRaw, String rawId) {
@@ -146,6 +149,7 @@ public class CommandRudazov extends CommandBase {
         }
         spirit.bindSpell(slot, id);
         msg(player, TextFormatting.GOLD, "Слот " + (slot + 1) + " привязан к: " + id);
+        PacketSyncSpirit.sendTo(player);
     }
 
     private static void craft(EntityPlayerMP player, IActiveSpirit spirit, String[] args) {
@@ -200,6 +204,7 @@ public class CommandRudazov extends CommandBase {
         msg(player, TextFormatting.GREEN, "Собрано: " + spell.id());
         msg(player, TextFormatting.GRAY, formatSpell(spell));
         msg(player, TextFormatting.GRAY, "Привязка: /rudazovmod bind 1 " + spell.id());
+        PacketSyncSpirit.sendTo(player);
     }
 
     private static void list(EntityPlayerMP player, IActiveSpirit spirit) {

@@ -128,6 +128,21 @@ public class ActiveSpiritData implements IActiveSpirit {
     }
 
     @Override
+    public void clearUnlockedSpells() {
+        this.unlockedSpells.clear();
+    }
+
+    @Override
+    public void clearBoundSpells() {
+        this.boundSpells.clear();
+    }
+
+    @Override
+    public void clearGrimoire() {
+        this.grimoire.clear();
+    }
+
+    @Override
     public boolean ownsSpell(String spellId) {
         return getSpell(spellId).isPresent() || isSpellUnlocked(spellId);
     }

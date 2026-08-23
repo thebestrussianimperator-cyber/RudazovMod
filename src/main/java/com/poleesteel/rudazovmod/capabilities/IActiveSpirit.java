@@ -32,6 +32,9 @@ public interface IActiveSpirit {
     Optional<SpellDefinition> getSpell(String spellId);
     Collection<SpellDefinition> getGrimoire();
     void putSpell(SpellDefinition spell);
+    void clearUnlockedSpells();
+    void clearBoundSpells();
+    void clearGrimoire();
 
     /** В гримуаре или в unlock (пресет). */
     boolean ownsSpell(String spellId);

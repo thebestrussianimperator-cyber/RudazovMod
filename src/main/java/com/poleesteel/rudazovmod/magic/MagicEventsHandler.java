@@ -4,6 +4,7 @@ import com.poleesteel.rudazovmod.capabilities.ActiveSpiritProvider;
 import com.poleesteel.rudazovmod.capabilities.IActiveSpirit;
 import com.poleesteel.rudazovmod.network.PacketHandler;
 import com.poleesteel.rudazovmod.network.PacketSyncMana;
+import com.poleesteel.rudazovmod.network.PacketSyncSpirit;
 import com.poleesteel.rudazovmod.spell.engine.SpellEngine;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.entity.Entity;
@@ -14,7 +15,10 @@ import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.event.AttachCapabilitiesEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import net.minecraftforge.fml.common.gameevent.PlayerEvent.PlayerChangedDimensionEvent;
+import net.minecraftforge.fml.common.gameevent.PlayerEvent.PlayerLoggedInEvent;
 import net.minecraftforge.fml.common.gameevent.PlayerEvent.PlayerLoggedOutEvent;
+import net.minecraftforge.fml.common.gameevent.PlayerEvent.PlayerRespawnEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 
 public class MagicEventsHandler {
@@ -68,5 +72,20 @@ public class MagicEventsHandler {
     @SubscribeEvent
     public void onLogout(PlayerLoggedOutEvent event) {
         SpellEngine.endCast(event.player);
+    }
+
+    @SubscribeEvent
+    public void onLogin(PlayerLoggedInEvent event) {
+        PacketSyncSpirit.sendTo(event.player);
+    }
+
+    @SubscribeEvent
+    public void onRespawn(PlayerRespawnEvent event) {
+        PacketSyncSpirit.sendTo(event.player);
+    }
+
+    @SubscribeEvent
+    public void onChangedDimension(PlayerChangedDimensionEvent event) {
+        PacketSyncSpirit.sendTo(event.player);
     }
 }

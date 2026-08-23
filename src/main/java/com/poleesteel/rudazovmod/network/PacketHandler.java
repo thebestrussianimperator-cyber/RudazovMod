@@ -9,9 +9,9 @@ public class PacketHandler {
 
     public static void init() {
         int id = 0;
-        // Регистрируем наш пакет: он летит на СТОРОНУ КЛИЕНТА (Side.CLIENT)
         INSTANCE.registerMessage(PacketSyncMana.Handler.class, PacketSyncMana.class, id++, Side.CLIENT);
         INSTANCE.registerMessage(PacketCastSpell.Handler.class, PacketCastSpell.class, id++, Side.SERVER);
         INSTANCE.registerMessage(PacketStopCast.Handler.class, PacketStopCast.class, id++, Side.SERVER);
+        INSTANCE.registerMessage(PacketSyncSpirit.Handler.class, PacketSyncSpirit.class, id++, Side.CLIENT);
     }
 }
