@@ -1,5 +1,6 @@
 package com.poleesteel.rudazovmod.capabilities;
 
+import com.poleesteel.rudazovmod.spell.api.SpellDefinition;
 import net.minecraft.nbt.NBTBase;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
@@ -10,6 +11,7 @@ import net.minecraftforge.common.capabilities.Capability.IStorage;
 import net.minecraftforge.common.util.Constants;
 
 import java.util.Map;
+import java.util.Optional;
 
 public class ActiveSpiritStorage implements IStorage<IActiveSpirit> {
 
@@ -38,6 +40,12 @@ public class ActiveSpiritStorage implements IStorage<IActiveSpirit> {
             boundList.appendTag(slotTag);
         }
         tag.setTag("BoundSpells", boundList);
+
+        NBTTagList grimoireList = new NBTTagList();
+        for (SpellDefinition spell : instance.getGrimoire()) {
+            grimoireList.appendTag(spell.writeNBT());
+        }
+        tag.setTag("Grimoire", grimoireList);
 
         return tag;
     }
@@ -68,6 +76,16 @@ public class ActiveSpiritStorage implements IStorage<IActiveSpirit> {
                     int slot = slotTag.getInteger("Slot");
                     String spellId = slotTag.getString("SpellId");
                     instance.bindSpell(slot, spellId);
+                }
+            }
+
+            if (tag.hasKey("Grimoire", Constants.NBT.TAG_LIST)) {
+                NBTTagList grimoireList = tag.getTagList("Grimoire", Constants.NBT.TAG_COMPOUND);
+                for (int i = 0; i < grimoireList.tagCount(); i++) {
+                    Optional<SpellDefinition> spell = SpellDefinition.readNBT(grimoireList.getCompoundTagAt(i));
+                    if (spell.isPresent()) {
+                        instance.putSpell(spell.get());
+                    }
                 }
             }
         }

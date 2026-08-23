@@ -8,8 +8,9 @@ import com.poleesteel.rudazovmod.spell.engine.SpellEngine;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.nbt.NBTBase;
 import net.minecraft.util.ResourceLocation;
-import java.util.Map;
+import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.event.AttachCapabilitiesEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
@@ -50,28 +51,17 @@ public class MagicEventsHandler {
     // 3. КРИТИЧЕСКИ ВАЖНО ДЛЯ 1.12.2: Сохраняем прокачку чакр при смерти игрока!
     @SubscribeEvent
     public void onPlayerClone(PlayerEvent.Clone event) {
-        if (event.isWasDeath()) {
-            SpellEngine.endCast(event.getOriginal());
+        SpellEngine.endCast(event.getOriginal());
 
-            IActiveSpirit oldSpirit = event.getOriginal().getCapability(ActiveSpiritProvider.ACTIVE_SPIRIT_CAP, null);
-            IActiveSpirit newSpirit = event.getEntityPlayer().getCapability(ActiveSpiritProvider.ACTIVE_SPIRIT_CAP, null);
-
-            if (oldSpirit != null && newSpirit != null) {
-                // Копируем ману и чакры
-                newSpirit.setMana(oldSpirit.getMana());
-                newSpirit.setMaxMana(oldSpirit.getMaxMana());
-                newSpirit.setChakraLevel(oldSpirit.getChakraLevel());
-
-                // Копируем изученные заклинания
-                for (String spellId : oldSpirit.getUnlockedSpells()) {
-                    newSpirit.unlockSpell(spellId);
-                }
-
-                // Копируем привязки к кнопкам
-                for (Map.Entry<Integer, String> entry : oldSpirit.getBoundSpells().entrySet()) {
-                    newSpirit.bindSpell(entry.getKey(), entry.getValue());
-                }
-            }
+        IActiveSpirit oldSpirit = event.getOriginal().getCapability(ActiveSpiritProvider.ACTIVE_SPIRIT_CAP, null);
+        IActiveSpirit newSpirit = event.getEntityPlayer().getCapability(ActiveSpiritProvider.ACTIVE_SPIRIT_CAP, null);
+        if (oldSpirit == null || newSpirit == null) {
+            return;
+        }
+        Capability.IStorage<IActiveSpirit> storage = ActiveSpiritProvider.ACTIVE_SPIRIT_CAP.getStorage();
+        NBTBase nbt = storage.writeNBT(ActiveSpiritProvider.ACTIVE_SPIRIT_CAP, oldSpirit, null);
+        if (nbt != null) {
+            storage.readNBT(ActiveSpiritProvider.ACTIVE_SPIRIT_CAP, newSpirit, null, nbt);
         }
     }
 

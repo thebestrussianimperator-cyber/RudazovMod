@@ -13,17 +13,22 @@ import java.util.UUID;
 
 /**
  * Серверное состояние CHANNEL-каста. Один активный каст на игрока.
+ * Снимок {@link SpellDefinition}, чтобы кастом из гримуара не зависел от статического реестра.
  */
 public final class ActiveCastTracker {
 
     @Desugar
-    public record ActiveCast(UUID playerId, ResourceLocation spellId, SpellTarget target, int startTick) {}
+    public record ActiveCast(UUID playerId, SpellDefinition spell, SpellTarget target, int startTick) {
+        public ResourceLocation spellId() {
+            return spell.id();
+        }
+    }
 
     private final Map<UUID, ActiveCast> active = new HashMap<>();
 
     public void begin(EntityPlayer player, SpellDefinition spell, SpellTarget target) {
         active.put(player.getUniqueID(),
-                new ActiveCast(player.getUniqueID(), spell.id(), target, player.ticksExisted));
+                new ActiveCast(player.getUniqueID(), spell, target, player.ticksExisted));
     }
 
     public Optional<ActiveCast> get(EntityPlayer player) {

@@ -5,7 +5,7 @@
 ## 1. Технический стек
 * Версия Minecraft: 1.12.2
 * Загрузчик модов: Minecraft Forge (FML / EventBus API)
-* Версия Java: Java 8 (никаких `var`, records, `List.of`, text blocks)
+* Версия Java: байткод Java 8, синтаксис через Jabel (`enableModernJavaSyntax`). Records — с `@Desugar`. Нельзя API Java 9+: `List.of`, `Map.of`, `Optional.isEmpty`.
 * Mod ID: `rudazovmod`
 * Базовый пакет: `com.poleesteel.rudazovmod`
 * Сеть: `SimpleNetworkWrapper`, канал `rudazov_net`
@@ -60,14 +60,14 @@ Capability `IActiveSpirit`:
 * Стартовые значения: 50 / 100 маны, уровень чакр 1.
 * Реген: `+0.05F * chakraLevel` за тик на сервере (`TickEvent.PlayerTickEvent`, фаза END).
 * Синхронизация маны на клиент: `PacketSyncMana` раз в 5 тиков. Изученные заклинания и бинды на клиент **не** синкаются (клиенту для каста достаточно номера слота).
-* Смерть: `PlayerEvent.Clone` копирует ману, чакры, unlock и bind. Копирование идёт полями, не через NBT storage — на 1.12.2 у `event.getOriginal()` capability иногда уже инвалидирован; копировать лучше через `IStorage.writeNBT/readNBT`.
+* Смерть / клон игрока: `PlayerEvent.Clone` копирует spirit через `IStorage.writeNBT/readNBT` (мана, чакры, unlock, bind, гримуар).
 * Прокачка: `upgradeChakras()` увеличивает уровень и `maxMana += 50`. Вызова из геймплея пока нет.
 
 ### 4.2. Каст
 
 1. Клавиши Z/X/C/V: START (`PacketCastSpell`) на нажатие слота, STOP (`PacketStopCast`) на отпускание. Один слот за раз.
-2. Сервер читает bind, проверяет unlock, кастует через `SpellEngine`.
-3. Команды: `/rudazovmod unlock <all|spell_id>`, `/rudazovmod bind <1-4> <spell_id>`. Id без `:` → namespace `rudazovmod`.
+2. Сервер читает bind, ищет определение в гримуаре затем в `SpellRegistry`, проверяет `ownsSpell`, кастует через `SpellEngine`.
+3. Команды: `/rudazovmod unlock <all|spell_id>`, `/rudazovmod bind <1-4> <spell_id>`, `/rudazovmod craft <mode> <target> <form> <element> <power>`, `/rudazovmod list`. Id без `:` → namespace `rudazovmod`. `craft` пишет в гримуар id `rudazovmod:custom/<uuid>`, не в статический реестр.
 4. Тестовые записи: `test_ray` (FIRE, INSTANT, RAY, NONE), `test_ice` (ICE, INSTANT, RAY, NONE), `test_beam` (FIRE, CHANNEL, RAY, NONE), `test_hold` (EARTH, CHANNEL, HOLD, ENTITY).
 
 ### 4.3. Формы и стихия
@@ -83,9 +83,8 @@ Capability `IActiveSpirit`:
 ### 4.5. Ещё нет
 
 * Кулдаун заклинаний (есть только у предмета цепи).
-* Синк unlock/bind на клиент (GUI хотбара).
-* Ось стихии в `SpellDefinition`.
-* Реальный эффект `RAY` / `HOLD`.
+* Синк unlock/bind/гримуара на клиент (GUI хотбара).
+* `HOLD` для ITEM/BLOCK.
 
 ## 5. Особенности архитектуры (общее)
 
@@ -100,10 +99,10 @@ Capability `IActiveSpirit`:
 
 ### Пакеты
 
-* `spell.api` — `CastMode` (INSTANT, CHANNEL), `TargetType` (NONE, ENTITY, ITEM, BLOCK), `Form` (RAY, HOLD), `SpellDefinition` (record: id, оси, power, cost), `SpellTarget` (закрытый набор nested-record’ов Entity/Item/Block/None; `sealed` Jabel 1.0.1 не умеет), `CastContext`, `TargetResolver`, `FormHandler`.
-* `spell.engine` — `SpellEngine` (`startCast` / `tick` / `endCast`), `SpellRegistry` (пока пустой), `ActiveCastTracker` (один CHANNEL на игрока).
+* `spell.api` — `CastMode` (INSTANT, CHANNEL), `TargetType` (NONE, ENTITY, ITEM, BLOCK), `Form` (RAY, HOLD), `SpellDefinition` (record: id, оси, power; `cost()` из осей; `writeNBT`/`readNBT`), `SpellCost`, `SpellCombination`, `SpellTarget` (закрытый набор nested-record’ов Entity/Item/Block/None; `sealed` Jabel 1.0.1 не умеет), `CastContext`, `TargetResolver`, `FormHandler`.
+* `spell.engine` — `SpellEngine` (`startCast` / `tick` / `endCast`, отказ `!canCast`), `SpellRegistry` (`registerDefaults()` — пресеты), `ActiveCastTracker` (один CHANNEL на игрока).
 * `spell.resolve` — `None` / `Entity` / `Item` / `Block` резолверы. ITEM — только `EntityItem`. ENTITY — не дроп. BLOCK — `RayTraceResult` (BlockHitResult в 1.12.2 нет).
-* `spell.form` — `RayFormHandler`, `HoldFormHandler` (заглушки, логи).
+* `spell.form` — `RayFormHandler`, `HoldFormHandler` (`HOLD`+ENTITY живой; ITEM/BLOCK — no-op).
 
 Хотбар (Z/X/C/V) шлёт START на нажатие слота и STOP на отпускание. Сервер: unlock/bind → `SpellEngine`.
 
@@ -113,12 +112,12 @@ Capability `IActiveSpirit`:
 Ввод (клавиша слота)
   → PacketCastSpell / PacketStopCast
     → SpellEngine.startCast / tick / endCast
-      → SpellRegistry.get
+      → findDefinition (гримуар | SpellRegistry)
         → TargetResolver.resolve
           → FormHandler.onStart / onTick / onEnd
 ```
 
-`SpellEngine` списывает ману и держит CHANNEL в `ActiveCastTracker`. Реестр — данные (`SpellDefinition`), не Java-класс спелла.
+`SpellEngine` проверяет `SpellCombination.canCast`, списывает ману и держит CHANNEL в `ActiveCastTracker` (снимок `SpellDefinition`, не id из реестра). Поиск определения: гримуар игрока, иначе `SpellRegistry`. Стоимость — `SpellDefinition.cost()` ← `SpellCost`.
 
 ### 6.2. Оси определения
 
@@ -129,7 +128,8 @@ Capability `IActiveSpirit`:
 | `targetType` | `NONE`, `ENTITY`, `ITEM`, `BLOCK` |
 | `form` | `RAY`, `HOLD` |
 | `element` | `FIRE`, `ICE`, `EARTH` |
-| `power` / `cost` | float на `SpellDefinition` |
+| `power` | float на `SpellDefinition` |
+| `cost()` | не поле: `SpellCost` = `modeBase * formMult * element.manaMultiplier * power`. INSTANT base 8, CHANNEL 0.4/тик; RAY 1.0, HOLD 1.25. В NBT не пишется, всегда пересчёт. |
 
 `SELF`/`AREA` нет. Scripted-спеллы не делать.
 
@@ -163,7 +163,7 @@ Capability `IActiveSpirit`:
 ### 6.4. Режимы каста
 
 * **INSTANT** — клиент шлёт пакет по фронту нажатия (`isPressed`). Один каст: снаряд, волна, самобафф.
-* **CHANNEL** — START при нажатии, STOP при отпускании / смерти / потере цели / нулевой мане. Состояние: `ActiveCastTracker.ActiveCast { spellId, startTick, SpellTarget }`. Каждый серверный тик: `isStillValid` → списание маны → `form.onTick`.
+* **CHANNEL** — START при нажатии, STOP при отпускании / смерти / потере цели / нулевой мане. Состояние: `ActiveCastTracker.ActiveCast { spell (снимок), startTick, SpellTarget }`. Каждый серверный тик: `isStillValid` → списание маны → `form.onTick`.
 * **CHARGE** — не в первой итерации.
 
 `CHANNEL` — про удержание кнопки, не про телекинез. Первая проверка канала в движке может быть «луч/волна, пока держишь», без захвата мобов.
@@ -185,12 +185,11 @@ Capability `IActiveSpirit`:
 
 ### 6.7. Состояние игрока (расширение capability)
 
-Оставить: мана, maxMana, chakraLevel, unlocked, bound[4].
+Есть: мана, maxMana, chakraLevel, unlocked, bound[4], гримуар (список `SpellDefinition`).
 
-Добавить:
+Добавить позже:
 * кулдаун по spellId
-* `ActiveCast` с `SpellTarget`
-* позже, для GUI слотов — полная синхронизация spirit, не только мана
+* для GUI слотов — полная синхронизация spirit, не только мана
 
 Идентификаторы в NBT всегда полные `rudazovmod:id`. Парсер: если нет `:`, подставлять namespace мода.
 
@@ -216,11 +215,59 @@ Capability `IActiveSpirit`:
 * Не читать `README.md` MDK как документацию мода.
 * Не тащить чужие магические API.
 
-## 7. План внедрения движка
+## 7. Конструктор заклинаний (цель движка)
 
-Скелет, каст, чистка, стихия, живые `RAY`/`HOLD`(entity) — сделаны. Дальше:
+Игрок не пишет Java и не получает «уникальный класс». Он собирает `SpellDefinition` из осей. Реестр `registerDefaults()` — только пресеты для отладки.
 
-1. `HOLD` для `ITEM` и `BLOCK` (остальные две composed-записи телекинеза).
-2. Кулдауны в capability. GUI/полный sync spirit — когда понадобится интерфейс слотов.
+### 7.1. Что хранить
 
-Не добавлять GUI крафта, пока не нужны слоты на клиенте.
+Слот хотбара указывает на **готовое определение**, не на «имя пресета из кода».
+
+* Пресеты (`test_ray` и т.п.) живут в `SpellRegistry` как шаблоны.
+* Собранные игроком — NBT в capability (гримуар): список `SpellDefinition`.
+* Id кастома: `rudazovmod:custom/<uuid>` или индекс в гримуаре. Каст: достать определение → `SpellEngine.startCast(player, definition)` без обязательной записи в статический реестр.
+
+`SpellDefinition` сериализуется через `writeNBT` / `readNBT` (id, оси, power). Id без `:` → namespace мода. Стоимость **считать** из осей (`SpellCost`), не хардкодить и не доверять NBT. Незаконная комбинация не создаётся (компактный конструктор), некастуемая (`HOLD`+ITEM/BLOCK и мусор) отвергается `SpellEngine` / `SpellRegistry.register` / `craft`.
+
+Гримуар в `IActiveSpirit` (NBT-ключ `Grimoire`). Каст: `findDefinition` → `SpellEngine.startCast(player, definition)` без записи кастома в статический реестр. `craft` создаёт `rudazovmod:custom/<uuid>`, кладёт в гримуар и unlock.
+
+### 7.2. Какие комбинации вообще законны
+
+Конструктор показывает только валидные пары. Движок отвергает остальное при касте.
+`SpellCombination.isLegal` — таблица ниже (включая ещё недобитые HOLD+ITEM/BLOCK). `isImplemented` / `canCast` — форма уже доставляет эффект; GUI и `/craft` опираются на это.
+
+| Form | TargetType | CastMode | Смысл | Сейчас в коде |
+|---|---|---|---|---|
+| RAY | NONE | INSTANT | снаряд | да |
+| RAY | NONE | CHANNEL | луч по взгляду | да |
+| RAY | ENTITY | INSTANT | хитскан в моба | частично (ветка есть) |
+| HOLD | ENTITY | CHANNEL | телекинез моба | да |
+| HOLD | ITEM | CHANNEL | телекинез дропа | нет |
+| HOLD | BLOCK | CHANNEL | нести блок | нет |
+
+Бессмысленные (не предлагать в GUI): `HOLD`+`NONE`, `HOLD`+`INSTANT`, `RAY`+`ITEM` пока нет эффекта на дроп.
+
+Новые формы (`SELF`, `AOE`) — только когда текущая матрица кастуется из гримуара, не заранее.
+
+### 7.3. Прогрессия
+
+Открываются **оси**, не готовые спеллы: стихия, форма, режим, тип цели, потолок `power`. Игрок собирает то, что уже открыл. Команды `unlock` временно могут открывать всё.
+
+### 7.4. Порядок работ (GUI в конце)
+
+1. NBT у `SpellDefinition`, формула маны, валидатор комбинаций — **сделано** (`writeNBT`/`readNBT`, `SpellCost`, `SpellCombination`).
+2. Гримуар в `IActiveSpirit`, каст из него, `/rudazovmod craft` и `list` — **сделано**.
+3. Добить матрицу: `HOLD`+`ITEM`, затем `HOLD`+`BLOCK`. Иначе конструктор врёт («выбрал блок — ничего»). При появлении эффекта — включить пару в `SpellCombination.isImplemented`. **следующий**
+4. Синк гримуара на клиент.
+5. GUI сборки (GuiScreen 1.12.2) и GUI слотов. Не раньше пункта 2.
+
+Не начинать с верстака/GUI: движок ещё не умеет сохранить и кастануть произвольную комбинацию.
+
+## 8. Что не делать
+
+* Не писать уникальные Java-классы спеллов и не воскрешать `AbstractSpell` / `CustomSpell`.
+* Не склеивать entity/item/block в один спелл.
+* Не плодить Entity на каждую стихию.
+* Не вешать логику каста на клиентский тик кроме START/STOP.
+* Не редактировать `build.gradle`.
+* Не читать `README.md` MDK как документацию мода.

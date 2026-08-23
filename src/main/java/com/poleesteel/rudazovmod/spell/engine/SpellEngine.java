@@ -7,6 +7,7 @@ import com.poleesteel.rudazovmod.spell.api.CastContext;
 import com.poleesteel.rudazovmod.spell.api.CastMode;
 import com.poleesteel.rudazovmod.spell.api.Form;
 import com.poleesteel.rudazovmod.spell.api.FormHandler;
+import com.poleesteel.rudazovmod.spell.api.SpellCombination;
 import com.poleesteel.rudazovmod.spell.api.SpellDefinition;
 import com.poleesteel.rudazovmod.spell.api.SpellTarget;
 import com.poleesteel.rudazovmod.spell.api.TargetResolver;
@@ -45,18 +46,38 @@ public final class SpellEngine {
         SpellRegistry.registerDefaults();
     }
 
+    /**
+     * Гримуар игрока, иначе пресет {@link SpellRegistry}. В статический реестр кастомы не кладём.
+     */
+    public static Optional<SpellDefinition> findDefinition(EntityPlayer caster, String spellId) {
+        if (spellId == null || spellId.isEmpty()) {
+            return Optional.empty();
+        }
+        IActiveSpirit spirit = caster.getCapability(ActiveSpiritProvider.ACTIVE_SPIRIT_CAP, null);
+        if (spirit != null) {
+            Optional<SpellDefinition> custom = spirit.getSpell(spellId);
+            if (custom.isPresent()) {
+                return custom;
+            }
+        }
+        return SpellRegistry.get(spellId);
+    }
+
     public static boolean startCast(EntityPlayer caster, String spellId) {
-        Optional<SpellDefinition> spell = SpellRegistry.get(spellId);
+        Optional<SpellDefinition> spell = findDefinition(caster, spellId);
         return spell.isPresent() && startCast(caster, spell.get());
     }
 
     public static boolean startCast(EntityPlayer caster, ResourceLocation spellId) {
-        Optional<SpellDefinition> spell = SpellRegistry.get(spellId);
-        return spell.isPresent() && startCast(caster, spell.get());
+        return startCast(caster, spellId == null ? null : spellId.toString());
     }
 
     public static boolean startCast(EntityPlayer caster, SpellDefinition spell) {
         if (caster.world.isRemote) {
+            return false;
+        }
+        if (!SpellCombination.canCast(spell)) {
+            RudazovMod.LOGGER.warn("[spell] Некастуемая комбинация {}", spell.id());
             return false;
         }
 
@@ -118,12 +139,7 @@ public final class SpellEngine {
             return;
         }
 
-        Optional<SpellDefinition> optSpell = SpellRegistry.get(cast.spellId());
-        if (!optSpell.isPresent()) {
-            TRACKER.remove(caster);
-            return;
-        }
-        SpellDefinition spell = optSpell.get();
+        SpellDefinition spell = cast.spell();
         TargetResolver resolver = RESOLVERS.get(spell.targetType());
         FormHandler handler = FORMS.get(spell.form());
         if (resolver == null || handler == null) {
@@ -153,11 +169,7 @@ public final class SpellEngine {
             return;
         }
         ActiveCastTracker.ActiveCast cast = opt.get();
-        Optional<SpellDefinition> optSpell = SpellRegistry.get(cast.spellId());
-        if (!optSpell.isPresent()) {
-            return;
-        }
-        SpellDefinition spell = optSpell.get();
+        SpellDefinition spell = cast.spell();
         FormHandler handler = FORMS.get(spell.form());
         if (handler == null) {
             return;

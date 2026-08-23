@@ -4,7 +4,6 @@ import com.poleesteel.rudazovmod.capabilities.ActiveSpiritProvider;
 import com.poleesteel.rudazovmod.capabilities.IActiveSpirit;
 import com.poleesteel.rudazovmod.spell.api.SpellDefinition;
 import com.poleesteel.rudazovmod.spell.engine.SpellEngine;
-import com.poleesteel.rudazovmod.spell.engine.SpellRegistry;
 import io.netty.buffer.ByteBuf;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
@@ -48,12 +47,11 @@ public class PacketCastSpell implements IMessage {
                 if (spellId == null || spellId.isEmpty()) {
                     return;
                 }
-                Optional<SpellDefinition> spell = SpellRegistry.get(spellId);
+                Optional<SpellDefinition> spell = SpellEngine.findDefinition(player, spellId);
                 if (!spell.isPresent()) {
                     return;
                 }
-                String canonical = spell.get().id().toString();
-                if (!spirit.isSpellUnlocked(spellId) && !spirit.isSpellUnlocked(canonical)) {
+                if (!spirit.ownsSpell(spellId) && !spirit.ownsSpell(spell.get().id().toString())) {
                     return;
                 }
                 SpellEngine.startCast(player, spell.get());

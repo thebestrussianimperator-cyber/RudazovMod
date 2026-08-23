@@ -1,8 +1,10 @@
 package com.poleesteel.rudazovmod.spell.engine;
 
+import com.poleesteel.rudazovmod.RudazovMod;
 import com.poleesteel.rudazovmod.Tags;
 import com.poleesteel.rudazovmod.spell.api.CastMode;
 import com.poleesteel.rudazovmod.spell.api.Form;
+import com.poleesteel.rudazovmod.spell.api.SpellCombination;
 import com.poleesteel.rudazovmod.spell.api.SpellDefinition;
 import com.poleesteel.rudazovmod.spell.api.SpellElement;
 import com.poleesteel.rudazovmod.spell.api.TargetType;
@@ -24,6 +26,10 @@ public final class SpellRegistry {
     private SpellRegistry() {}
 
     public static void register(SpellDefinition spell) {
+        if (!SpellCombination.canCast(spell)) {
+            RudazovMod.LOGGER.error("[spell] Пропуск некастуемой записи {}", spell.id());
+            return;
+        }
         SPELLS.put(spell.id(), spell);
     }
 
@@ -31,16 +37,16 @@ public final class SpellRegistry {
     public static void registerDefaults() {
         register(new SpellDefinition(
                 new ResourceLocation(Tags.MODID, "test_ray"),
-                CastMode.INSTANT, TargetType.NONE, Form.RAY, SpellElement.FIRE, 2.0F, 15.0F));
+                CastMode.INSTANT, TargetType.NONE, Form.RAY, SpellElement.FIRE, 2.0F));
         register(new SpellDefinition(
                 new ResourceLocation(Tags.MODID, "test_ice"),
-                CastMode.INSTANT, TargetType.NONE, Form.RAY, SpellElement.ICE, 2.0F, 15.0F));
+                CastMode.INSTANT, TargetType.NONE, Form.RAY, SpellElement.ICE, 2.0F));
         register(new SpellDefinition(
                 new ResourceLocation(Tags.MODID, "test_beam"),
-                CastMode.CHANNEL, TargetType.NONE, Form.RAY, SpellElement.FIRE, 1.0F, 0.5F));
+                CastMode.CHANNEL, TargetType.NONE, Form.RAY, SpellElement.FIRE, 1.0F));
         register(new SpellDefinition(
                 new ResourceLocation(Tags.MODID, "test_hold"),
-                CastMode.CHANNEL, TargetType.ENTITY, Form.HOLD, SpellElement.EARTH, 1.0F, 0.5F));
+                CastMode.CHANNEL, TargetType.ENTITY, Form.HOLD, SpellElement.EARTH, 1.0F));
     }
 
     public static Optional<SpellDefinition> get(ResourceLocation id) {
@@ -51,10 +57,11 @@ public final class SpellRegistry {
         if (id == null || id.isEmpty()) {
             return Optional.empty();
         }
-        ResourceLocation location = id.indexOf(':') >= 0
-                ? new ResourceLocation(id)
-                : new ResourceLocation(Tags.MODID, id);
-        return get(location);
+        try {
+            return get(SpellDefinition.parseId(id));
+        } catch (IllegalArgumentException ignored) {
+            return Optional.empty();
+        }
     }
 
     public static Collection<SpellDefinition> all() {

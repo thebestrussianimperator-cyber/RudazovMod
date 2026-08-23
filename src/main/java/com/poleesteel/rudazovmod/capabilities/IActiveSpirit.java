@@ -1,7 +1,11 @@
 package com.poleesteel.rudazovmod.capabilities;
 
-import java.util.Set;
+import com.poleesteel.rudazovmod.spell.api.SpellDefinition;
+
+import java.util.Collection;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 public interface IActiveSpirit {
     float getMana();
@@ -23,4 +27,12 @@ public interface IActiveSpirit {
     void bindSpell(int slot, String spellId); // slot от 0 до 3
     String getBoundSpell(int slot);
     Map<Integer, String> getBoundSpells();
+
+    /** Свои собранные определения. Пресеты реестра здесь не живут. */
+    Optional<SpellDefinition> getSpell(String spellId);
+    Collection<SpellDefinition> getGrimoire();
+    void putSpell(SpellDefinition spell);
+
+    /** В гримуаре или в unlock (пресет). */
+    boolean ownsSpell(String spellId);
 }
