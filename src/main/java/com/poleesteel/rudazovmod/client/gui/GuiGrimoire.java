@@ -111,7 +111,7 @@ public class GuiGrimoire extends GuiScreen {
         cy += 20;
         addModeRow(cx, cy);
         cy += 20;
-        addEnumRow(ID_ELEMENT, cx, cy, SpellElement.values(), this.element, 58);
+        addEnumRow(ID_ELEMENT, cx, cy, SpellElement.values(), this.element, 44);
         cy += 22;
         this.buttonList.add(new GuiButton(ID_POWER_MINUS, cx, cy, 18, 16, "-"));
         this.buttonList.add(new GuiButton(ID_POWER_PLUS, cx + 164, cy, 18, 16, "+"));

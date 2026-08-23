@@ -166,7 +166,12 @@ public final class HoldFormHandler implements FormHandler {
 
     private static void hoverCarried(CastContext context) {
         CarriedBlock carried = CARRIED.get(context.caster().getUniqueID());
-        if (carried == null || !(context.world() instanceof WorldServer)) {
+        if (carried == null) {
+            return;
+        }
+        context.spell().element().onHoldTick(
+                null, context.spell().power(), context.caster(), context.ticksHeld());
+        if (!(context.world() instanceof WorldServer)) {
             return;
         }
         Vec3d holdPos = holdPos(context);

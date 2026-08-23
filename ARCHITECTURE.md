@@ -70,7 +70,7 @@ Capability `IActiveSpirit`:
 1. Клавиши Z/X/C/V: START (`PacketCastSpell`) на нажатие слота, STOP (`PacketStopCast`) на отпускание. Один слот за раз. G открывает `GuiGrimoire`.
 2. Сервер читает bind, ищет определение в гримуаре затем в `SpellRegistry`, проверяет `ownsSpell`, кастует через `SpellEngine`.
 3. Команды: `/rudazovmod unlock <all|spell_id>`, `/rudazovmod bind <1-4> <spell_id>`, `/rudazovmod craft <mode> <target> <form> <element> <power>`, `/rudazovmod list`. Id без `:` → namespace `rudazovmod`. `craft` пишет в гримуар id `rudazovmod:custom/<uuid>`, не в статический реестр.
-4. Тестовые записи: `test_ray` (FIRE, INSTANT, RAY, NONE), `test_ice` (ICE, INSTANT, RAY, NONE), `test_beam` (FIRE, CHANNEL, RAY, NONE), `test_hold` (EARTH, CHANNEL, HOLD, ENTITY), `test_hold_item` (HOLD+ITEM), `test_hold_block` (HOLD+BLOCK).
+4. Тестовые записи: `test_ray` (FIRE, INSTANT, RAY, NONE), `test_ice` (ICE, INSTANT, RAY, NONE), `test_beam` (FIRE, CHANNEL, RAY, NONE), `test_hold` (EARTH, CHANNEL, HOLD, ENTITY), `test_hold_item` (HOLD+ITEM), `test_hold_block` (HOLD+BLOCK), `test_heal` (LIFE, INSTANT, RAY, ENTITY), `test_drain` (LIFE, CHANNEL, HOLD, ENTITY).
 
 ### 4.3. Формы и стихия
 
@@ -78,8 +78,9 @@ Capability `IActiveSpirit`:
   * FIRE — горение, поджог блока, плавка дропа на HOLD, быстрый снаряд.
   * ICE — замедление, заморозка воды/лавы, вязкая тяга HOLD, медленный снаряд.
   * EARTH — тяжёлый удар и отброс, сильная тяга, швырок при отпускании HOLD, снаряд с гравитацией; INSTANT ломает мягкий блок.
+  * LIFE — `onHit` лечит живых и бьёт нежить. `HOLD`+ENTITY высасывает HP в кастера. `RAY` по блоку — рост (`IGrowable`). Форма `SELF` ещё нет.
 * `RAY` INSTANT + NONE — `EntitySpellProjectile` (скорость/гравитация/след стихии). CHANNEL + NONE — луч (частицы стихии, `onHit` и `onWorldHit` раз в 5 тиков).
-* `HOLD` + ENTITY — тянет цель; стихия жжёт / морозит / швыряет.
+* `HOLD` + ENTITY — тянет цель; стихия жжёт / морозит / швыряет / высасывает (`LIFE`).
 * `HOLD` + ITEM — то же для `EntityItem`; FIRE за ~1с плавит по рецепту печи.
 * `HOLD` + BLOCK — вынуть/нести/поставить; частицы стихии вокруг груза.
 
@@ -91,6 +92,7 @@ Capability `IActiveSpirit`:
 
 * Кулдаун заклинаний (есть только у предмета цепи).
 * Прогрессия осей (пока конструктор показывает всю матрицу `canCast`).
+* Форма `SELF` (хил без цели в мире).
 
 ## 5. Особенности архитектуры (общее)
 
@@ -133,7 +135,7 @@ Capability `IActiveSpirit`:
 | `castMode` | `INSTANT`, `CHANNEL` |
 | `targetType` | `NONE`, `ENTITY`, `ITEM`, `BLOCK` |
 | `form` | `RAY`, `HOLD` |
-| `element` | `FIRE`, `ICE`, `EARTH` |
+| `element` | `FIRE`, `ICE`, `EARTH`, `LIFE` |
 | `power` | float на `SpellDefinition` |
 | `cost()` | не поле: `SpellCost` = `modeBase * formMult * element.manaMultiplier * power`. INSTANT base 8, CHANNEL 0.4/тик; RAY 1.0, HOLD 1.25. В NBT не пишется, всегда пересчёт. |
 
@@ -187,7 +189,7 @@ Capability `IActiveSpirit`:
 * `RAY` — снаряд (INSTANT + NONE) или луч по взгляду (CHANNEL). Стихия: след, баллистика, удар по мобу и блоку.
 * `HOLD` — удержание `ENTITY`/`ITEM` перед кастером; `BLOCK` вынимается из мира и ставится по отпусканию. Стихия: множитель тяги, `onHoldTick` / `onHoldRelease`.
 
-Стихия окрашивает форму. Доставка остаётся `RAY`/`HOLD`, не «уникальный спелл огня».
+Стихия окрашивает форму. Доставка остаётся `RAY`/`HOLD`, не «уникальный спелл огня» и не класс `SpellHeal`. `LIFE` — знак эффекта (лечение / вампиризм), не четвёртый урон.
 
 ### 6.7. Состояние игрока (расширение capability)
 

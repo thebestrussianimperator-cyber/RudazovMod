@@ -1,5 +1,6 @@
 package com.poleesteel.rudazovmod.spell.api;
 
+import net.minecraft.block.IGrowable;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.Entity;
@@ -46,6 +47,12 @@ public enum SpellElement {
                         source.posZ - target.posZ);
             }
         }
+    },
+    LIFE("Жизнь", 0x55FF88, 1.3F) {
+        @Override
+        public void onHit(EntityLivingBase target, float power, EntityLivingBase source) {
+            applyLife(target, 3.0F * power, source);
+        }
     };
 
     private final String displayName;
@@ -78,6 +85,8 @@ public enum SpellElement {
                 return EnumParticleTypes.SNOWBALL;
             case EARTH:
                 return EnumParticleTypes.CRIT;
+            case LIFE:
+                return EnumParticleTypes.HEART;
             case FIRE:
             default:
                 return EnumParticleTypes.FLAME;
@@ -91,6 +100,8 @@ public enum SpellElement {
                 return 0.55F;
             case EARTH:
                 return 1.45F;
+            case LIFE:
+                return 0.85F;
             case FIRE:
             default:
                 return 1.0F;
@@ -103,6 +114,8 @@ public enum SpellElement {
                 return 1.6F;
             case EARTH:
                 return 2.2F;
+            case LIFE:
+                return 2.0F;
             case FIRE:
             default:
                 return 2.8F;
@@ -115,6 +128,8 @@ public enum SpellElement {
                 return 0.02F;
             case EARTH:
                 return 0.08F;
+            case LIFE:
+                return 0.015F;
             case FIRE:
             default:
                 return 0.01F;
@@ -125,6 +140,11 @@ public enum SpellElement {
      * HOLD каждый тик. Не полный onHit каждый тик — иначе земля убивает за полсекунды.
      */
     public void onHoldTick(Entity target, float power, EntityLivingBase caster, int ticksHeld) {
+        if (this == LIFE && (target == null || target instanceof EntityItem)
+                && ticksHeld > 0 && ticksHeld % 20 == 0 && caster != null) {
+            caster.heal(0.5F * power);
+            return;
+        }
         if (target == null || !target.isEntityAlive()) {
             return;
         }
@@ -145,6 +165,12 @@ public enum SpellElement {
                     if (ticksHeld > 0 && ticksHeld % 20 == 0) {
                         onHit(living, power * 0.4F, caster);
                     }
+                }
+                break;
+            case LIFE:
+                if (target instanceof EntityLivingBase living && living != caster
+                        && ticksHeld > 0 && ticksHeld % 10 == 0) {
+                    drainToCaster(living, 1.5F * power, caster);
                 }
                 break;
             case EARTH:
@@ -178,6 +204,11 @@ public enum SpellElement {
                 target.motionY -= 0.55D * power;
                 target.velocityChanged = true;
                 break;
+            case LIFE:
+                if (target instanceof EntityLivingBase living && living != caster) {
+                    drainToCaster(living, 2.0F * power, caster);
+                }
+                break;
             default:
                 break;
         }
@@ -204,8 +235,46 @@ public enum SpellElement {
             case EARTH:
                 punchBlock(world, pos, power, concentrated);
                 break;
+            case LIFE:
+                if (concentrated || world.rand.nextFloat() < 0.25F) {
+                    tryGrow(world, pos);
+                }
+                break;
             default:
                 break;
+        }
+    }
+
+    private static void applyLife(EntityLivingBase target, float amount, EntityLivingBase source) {
+        if (target.isEntityUndead()) {
+            target.attackEntityFrom(DamageSource.MAGIC, amount);
+        } else {
+            target.heal(amount);
+        }
+    }
+
+    private static void drainToCaster(EntityLivingBase target, float amount, EntityLivingBase caster) {
+        float before = target.getHealth();
+        if (target.isEntityUndead()) {
+            target.attackEntityFrom(DamageSource.MAGIC, amount * 1.25F);
+        } else {
+            target.attackEntityFrom(DamageSource.MAGIC, amount);
+        }
+        float taken = Math.max(0.0F, before - target.getHealth());
+        if (taken > 0.0F && caster != null && caster.isEntityAlive()) {
+            caster.heal(taken);
+        }
+    }
+
+    private static void tryGrow(World world, BlockPos pos) {
+        IBlockState state = world.getBlockState(pos);
+        if (!(state.getBlock() instanceof IGrowable)) {
+            return;
+        }
+        IGrowable growable = (IGrowable) state.getBlock();
+        if (growable.canGrow(world, pos, state, false)
+                && growable.canUseBonemeal(world, world.rand, pos, state)) {
+            growable.grow(world, world.rand, pos, state);
         }
     }
 

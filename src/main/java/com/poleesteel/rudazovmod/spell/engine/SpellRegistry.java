@@ -53,6 +53,12 @@ public final class SpellRegistry {
         register(new SpellDefinition(
                 new ResourceLocation(Tags.MODID, "test_hold_block"),
                 CastMode.CHANNEL, TargetType.BLOCK, Form.HOLD, SpellElement.EARTH, 1.0F));
+        register(new SpellDefinition(
+                new ResourceLocation(Tags.MODID, "test_heal"),
+                CastMode.INSTANT, TargetType.ENTITY, Form.RAY, SpellElement.LIFE, 2.0F));
+        register(new SpellDefinition(
+                new ResourceLocation(Tags.MODID, "test_drain"),
+                CastMode.CHANNEL, TargetType.ENTITY, Form.HOLD, SpellElement.LIFE, 1.0F));
     }
 
     public static Optional<SpellDefinition> get(ResourceLocation id) {
