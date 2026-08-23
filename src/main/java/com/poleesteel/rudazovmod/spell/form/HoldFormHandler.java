@@ -4,6 +4,7 @@ import com.github.bsideup.jabel.Desugar;
 import com.poleesteel.rudazovmod.spell.api.CastContext;
 import com.poleesteel.rudazovmod.spell.api.Form;
 import com.poleesteel.rudazovmod.spell.api.FormHandler;
+import com.poleesteel.rudazovmod.spell.api.SpellElement;
 import com.poleesteel.rudazovmod.spell.api.SpellTarget;
 import com.poleesteel.rudazovmod.spell.resolve.LookTrace;
 import net.minecraft.block.Block;
@@ -36,7 +37,7 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Удержание цели перед кастером.
+ * Удержание цели перед кастером. Стихия окрашивает тягу, не подменяет форму.
  * ENTITY/ITEM — motion сущности (у дропа ещё запрет pickup).
  * BLOCK — мутация мира: вынуть, нести, поставить. Не motionX.
  */
@@ -102,11 +103,16 @@ public final class HoldFormHandler implements FormHandler {
         if (context.world().isRemote) {
             return;
         }
-        if (context.target() instanceof SpellTarget.ItemTarget itemTarget) {
+        SpellTarget target = context.target();
+        if (target instanceof SpellTarget.ItemTarget itemTarget) {
             EntityItem item = itemTarget.find(context.world());
             if (item != null) {
                 item.setNoPickupDelay();
+                context.spell().element().onHoldRelease(item, context.spell().power(), context.caster());
             }
+        } else if (target instanceof SpellTarget.EntityTarget entityTarget) {
+            Entity entity = entityTarget.find(context.world());
+            context.spell().element().onHoldRelease(entity, context.spell().power(), context.caster());
         }
         releaseBlock(context);
     }
@@ -124,13 +130,21 @@ public final class HoldFormHandler implements FormHandler {
         if (entity == null || !entity.isEntityAlive()) {
             return;
         }
+        float pull = (float) PULL * context.spell().element().holdPullMultiplier();
         Vec3d holdPos = holdPos(context);
-        entity.motionX = (holdPos.x - entity.posX) * PULL;
-        entity.motionY = (holdPos.y - entity.posY) * PULL;
-        entity.motionZ = (holdPos.z - entity.posZ) * PULL;
+        entity.motionX = (holdPos.x - entity.posX) * pull;
+        entity.motionY = (holdPos.y - entity.posY) * pull;
+        entity.motionZ = (holdPos.z - entity.posZ) * pull;
         entity.isAirBorne = true;
         entity.fallDistance = 0.0F;
         entity.velocityChanged = true;
+        flavor(entity, context);
+    }
+
+    private static void flavor(Entity entity, CastContext context) {
+        context.spell().element().onHoldTick(
+                entity, context.spell().power(), context.caster(), context.ticksHeld());
+        spawnElementParticles(context, entity.posX, entity.posY + entity.height * 0.5D, entity.posZ);
     }
 
     private static void pickupBlock(CastContext context, BlockPos pos) {
@@ -162,6 +176,16 @@ public final class HoldFormHandler implements FormHandler {
                 holdPos.x, holdPos.y, holdPos.z,
                 6, 0.15D, 0.15D, 0.15D, 0.0D,
                 Block.getStateId(carried.state()));
+        spawnElementParticles(context, holdPos.x, holdPos.y, holdPos.z);
+    }
+
+    private static void spawnElementParticles(CastContext context, double x, double y, double z) {
+        if (!(context.world() instanceof WorldServer)) {
+            return;
+        }
+        SpellElement element = context.spell().element();
+        ((WorldServer) context.world()).spawnParticle(
+                element.trailParticle(), x, y, z, 4, 0.12D, 0.12D, 0.12D, 0.0D);
     }
 
     private static void releaseBlock(CastContext context) {

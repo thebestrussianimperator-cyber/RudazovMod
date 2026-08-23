@@ -25,9 +25,8 @@ public class EntitySpellProjectile extends EntityThrowable {
         super(worldIn, throwerIn);
         this.power = power;
         this.setElement(element);
-
-        // Задаем скорость и точность полета (2.5F — летит быстрее стрелы!)
-        this.shoot(throwerIn, throwerIn.rotationPitch, throwerIn.rotationYaw, 0.0F, 2.5F, 0.0F);
+        this.shoot(throwerIn, throwerIn.rotationPitch, throwerIn.rotationYaw, 0.0F,
+                element.projectileSpeed(), 0.0F);
     }
 
     @Override
@@ -48,7 +47,7 @@ public class EntitySpellProjectile extends EntityThrowable {
 
     @Override
     protected float getGravityVelocity() {
-        return 0.01F; // Почти нулевая гравитация — магия летит ровно туда, куда смотрит прицел!
+        return getElement().projectileGravity();
     }
 
     @Override
@@ -57,19 +56,22 @@ public class EntitySpellProjectile extends EntityThrowable {
 
         // На стороне клиента спавним красивый цветной шлейф из частиц
         if (this.world.isRemote) {
-            int color = getElement().getColor();
-            // Разбираем HEX-цвет на RGB (от 0.0 до 1.0)
+            SpellElement element = getElement();
+            int color = element.getColor();
             float r = ((color >> 16) & 0xFF) / 255.0F;
             float g = ((color >> 8) & 0xFF) / 255.0F;
             float b = (color & 0xFF) / 255.0F;
+            EnumParticleTypes trail = element.trailParticle();
 
             for (int i = 0; i < 3; i++) {
-                // В 1.12.2 частицы REDSTONE меняют свой цвет, если передать RGB в параметры скорости!
                 this.world.spawnParticle(EnumParticleTypes.REDSTONE,
                         this.posX + (this.rand.nextDouble() - 0.5D) * 0.3D,
                         this.posY + (this.rand.nextDouble() - 0.5D) * 0.3D,
                         this.posZ + (this.rand.nextDouble() - 0.5D) * 0.3D,
                         r, g, b);
+                this.world.spawnParticle(trail,
+                        this.posX, this.posY, this.posZ,
+                        0.0D, 0.0D, 0.0D);
             }
         }
     }
@@ -77,11 +79,13 @@ public class EntitySpellProjectile extends EntityThrowable {
     @Override
     protected void onImpact(RayTraceResult result) {
         if (!this.world.isRemote) {
-            // Если попали по живому существу — вызываем логику стихии (урон, поджог, заморозка)
+            SpellElement element = getElement();
             if (result.typeOfHit == RayTraceResult.Type.ENTITY && result.entityHit instanceof EntityLivingBase) {
-                getElement().onHit((EntityLivingBase) result.entityHit, this.power, this.getThrower());
+                element.onHit((EntityLivingBase) result.entityHit, this.power, this.getThrower());
+            } else if (result.typeOfHit == RayTraceResult.Type.BLOCK) {
+                element.onWorldHit(this.world, result.getBlockPos(), result.sideHit,
+                        this.power, this.getThrower(), true);
             }
-            // Исчезаем при ударе о моба или стену
             this.setDead();
         }
     }

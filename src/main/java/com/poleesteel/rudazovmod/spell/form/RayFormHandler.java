@@ -5,7 +5,6 @@ import com.poleesteel.rudazovmod.spell.api.CastContext;
 import com.poleesteel.rudazovmod.spell.api.CastMode;
 import com.poleesteel.rudazovmod.spell.api.Form;
 import com.poleesteel.rudazovmod.spell.api.FormHandler;
-import com.poleesteel.rudazovmod.spell.api.SpellElement;
 import com.poleesteel.rudazovmod.spell.api.SpellTarget;
 import com.poleesteel.rudazovmod.spell.resolve.LookTrace;
 import net.minecraft.entity.Entity;
@@ -62,6 +61,10 @@ public final class RayFormHandler implements FormHandler {
         }
         LookTrace.findEntity(context.caster(), e -> e instanceof EntityLivingBase && e.isEntityAlive())
                 .ifPresent(entity -> applyElement(context, entity));
+        LookTrace.findBlock(context.caster()).ifPresent(hit ->
+                context.spell().element().onWorldHit(
+                        context.world(), hit.getBlockPos(), hit.sideHit,
+                        context.spell().power(), context.caster(), false));
     }
 
     private static void applyElement(CastContext context, Entity entity) {
@@ -77,22 +80,10 @@ public final class RayFormHandler implements FormHandler {
         WorldServer world = (WorldServer) context.world();
         Vec3d eye = context.eyePos();
         Vec3d look = context.lookVec();
-        EnumParticleTypes particle = particleOf(context.spell().element());
-        for (int i = 1; i <= 8; i++) {
-            Vec3d pos = eye.add(look.x * i * 1.5D, look.y * i * 1.5D, look.z * i * 1.5D);
-            world.spawnParticle(particle, pos.x, pos.y, pos.z, 1, 0.02D, 0.02D, 0.02D, 0.0D);
-        }
-    }
-
-    private static EnumParticleTypes particleOf(SpellElement element) {
-        switch (element) {
-            case ICE:
-                return EnumParticleTypes.SNOWBALL;
-            case EARTH:
-                return EnumParticleTypes.CRIT;
-            case FIRE:
-            default:
-                return EnumParticleTypes.FLAME;
+        EnumParticleTypes particle = context.spell().element().trailParticle();
+        for (int i = 1; i <= 12; i++) {
+            Vec3d pos = eye.add(look.x * i, look.y * i, look.z * i);
+            world.spawnParticle(particle, pos.x, pos.y, pos.z, 2, 0.04D, 0.04D, 0.04D, 0.0D);
         }
     }
 }
