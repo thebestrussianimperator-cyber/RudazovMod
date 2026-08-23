@@ -9,6 +9,8 @@ import com.poleesteel.rudazovmod.spell.api.SpellCombination;
 import com.poleesteel.rudazovmod.spell.api.SpellDefinition;
 import com.poleesteel.rudazovmod.spell.api.SpellElement;
 import com.poleesteel.rudazovmod.spell.api.TargetType;
+import com.poleesteel.rudazovmod.network.PacketHandler;
+import com.poleesteel.rudazovmod.network.PacketSyncMana;
 import com.poleesteel.rudazovmod.network.PacketSyncSpirit;
 import com.poleesteel.rudazovmod.spell.engine.SpellBook;
 import com.poleesteel.rudazovmod.spell.engine.SpellEngine;
@@ -35,7 +37,7 @@ public class CommandRudazov extends CommandBase {
 
     @Override
     public String getUsage(ICommandSender sender) {
-        return "/rudazovmod <unlock|bind|craft|list> <args>";
+        return "/rudazovmod <unlock|bind|craft|list|mana> <args>";
     }
 
     @Override
@@ -63,6 +65,8 @@ public class CommandRudazov extends CommandBase {
             craft(player, spirit, args);
         } else if ("list".equals(sub)) {
             list(player, spirit);
+        } else if ("mana".equals(sub)) {
+            refillMana(player, spirit);
         } else {
             msg(player, TextFormatting.RED, "Использование: " + getUsage(sender));
             msg(player, TextFormatting.GRAY, "/rudazovmod craft <mode> <target> <form> <element> <power>");
@@ -73,7 +77,7 @@ public class CommandRudazov extends CommandBase {
     @Override
     public List<String> getTabCompletions(MinecraftServer server, ICommandSender sender, String[] args, BlockPos pos) {
         if (args.length == 1) {
-            return getListOfStringsMatchingLastWord(args, "unlock", "bind", "craft", "list");
+            return getListOfStringsMatchingLastWord(args, "unlock", "bind", "craft", "list", "mana");
         }
         String sub = args[0].toLowerCase();
         if ("unlock".equals(sub) && args.length == 2) {
@@ -104,6 +108,15 @@ public class CommandRudazov extends CommandBase {
             }
         }
         return Collections.emptyList();
+    }
+
+    private static void refillMana(EntityPlayerMP player, IActiveSpirit spirit) {
+        spirit.setMana(spirit.getMaxMana());
+        PacketHandler.INSTANCE.sendTo(
+                new PacketSyncMana(spirit.getMana(), spirit.getMaxMana(), spirit.getChakraLevel()),
+                player);
+        msg(player, TextFormatting.AQUA, "Мана восстановлена: "
+                + (int) spirit.getMana() + " / " + (int) spirit.getMaxMana());
     }
 
     private static void unlock(EntityPlayerMP player, IActiveSpirit spirit, String rawId) {

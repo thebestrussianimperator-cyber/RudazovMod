@@ -69,7 +69,7 @@ Capability `IActiveSpirit`:
 
 1. Клавиши Z/X/C/V: START (`PacketCastSpell`) на нажатие слота, STOP (`PacketStopCast`) на отпускание. Один слот за раз. G открывает `GuiGrimoire`.
 2. Сервер читает bind, ищет определение в гримуаре затем в `SpellRegistry`, проверяет `ownsSpell`, кастует через `SpellEngine`.
-3. Команды: `/rudazovmod unlock <all|spell_id>`, `/rudazovmod bind <1-4> <spell_id>`, `/rudazovmod craft <mode> <target> <form> <element> <power>`, `/rudazovmod list`. Id без `:` → namespace `rudazovmod`. `craft` пишет в гримуар id `rudazovmod:custom/<uuid>`, не в статический реестр.
+3. Команды: `/rudazovmod unlock <all|spell_id>`, `/rudazovmod bind <1-4> <spell_id>`, `/rudazovmod craft <mode> <target> <form> <element> <power>`, `/rudazovmod list`, `/rudazovmod mana` (полная мана, для теста). Id без `:` → namespace `rudazovmod`. `craft` пишет в гримуар id `rudazovmod:custom/<uuid>`, не в статический реестр.
 4. Тестовые записи: `test_ray`, `test_ice`, `test_beam`, `test_hold`, `test_hold_item`, `test_hold_block`, `test_heal` (LIFE RAY ENTITY), `test_drain` (LIFE HOLD ENTITY), `test_self` (LIFE SELF INSTANT), `test_self_ward` (FIRE SELF CHANNEL).
 
 ### 4.3. Формы и стихия
