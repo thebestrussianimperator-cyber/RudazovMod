@@ -5,6 +5,7 @@ import com.poleesteel.rudazovmod.capabilities.IActiveSpirit;
 import com.poleesteel.rudazovmod.client.gui.GuiGrimoire;
 import com.poleesteel.rudazovmod.client.input.KeyBindHandler;
 import com.poleesteel.rudazovmod.spell.api.SpellDefinition;
+import com.poleesteel.rudazovmod.spell.api.SpellProgression;
 import com.poleesteel.rudazovmod.spell.engine.SpellEngine;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
@@ -50,7 +51,9 @@ public class SpellSlotHud {
                 Optional<SpellDefinition> spell = SpellEngine.findDefinition(player, bound);
                 if (spell.isPresent()) {
                     name = GuiGrimoire.shortName(spell.get());
-                    color = 0xFFFFFF;
+                    color = SpellProgression.meetsChakra(spirit.getChakraLevel(), spell.get())
+                            ? 0xFFFFFF
+                            : 0xAA5555;
                 }
             }
             Gui.drawRect(x, y + i * 12, x + 92, y + i * 12 + 11, 0x88000000);

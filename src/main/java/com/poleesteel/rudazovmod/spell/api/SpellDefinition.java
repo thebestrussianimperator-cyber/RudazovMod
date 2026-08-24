@@ -13,7 +13,7 @@ import java.util.UUID;
 
 /**
  * Данные заклинания. Поведение задаётся осями, не Java-классом спелла.
- * {@link #cost()} считается из осей, в NBT не пишется.
+ * {@link #cost()} — база из осей, в NBT не пишется. Скидка мастерства — {@link SpellCost#of(SpellDefinition, float, float)}.
  */
 @Desugar
 public record SpellDefinition(

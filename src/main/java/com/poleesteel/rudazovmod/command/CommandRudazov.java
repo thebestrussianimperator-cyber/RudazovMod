@@ -6,8 +6,10 @@ import com.poleesteel.rudazovmod.capabilities.IActiveSpirit;
 import com.poleesteel.rudazovmod.spell.api.CastMode;
 import com.poleesteel.rudazovmod.spell.api.Form;
 import com.poleesteel.rudazovmod.spell.api.SpellCombination;
+import com.poleesteel.rudazovmod.spell.api.SpellCost;
 import com.poleesteel.rudazovmod.spell.api.SpellDefinition;
 import com.poleesteel.rudazovmod.spell.api.SpellElement;
+import com.poleesteel.rudazovmod.spell.api.SpellProgression;
 import com.poleesteel.rudazovmod.spell.api.TargetType;
 import com.poleesteel.rudazovmod.network.PacketHandler;
 import com.poleesteel.rudazovmod.network.PacketSyncMana;
@@ -26,6 +28,7 @@ import net.minecraft.util.text.TextFormatting;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 public class CommandRudazov extends CommandBase {
@@ -37,7 +40,7 @@ public class CommandRudazov extends CommandBase {
 
     @Override
     public String getUsage(ICommandSender sender) {
-        return "/rudazovmod <unlock|bind|craft|list|mana> <args>";
+        return "/rudazovmod <unlock|bind|craft|list|mana|chakra> <args>";
     }
 
     @Override
@@ -67,17 +70,27 @@ public class CommandRudazov extends CommandBase {
             list(player, spirit);
         } else if ("mana".equals(sub)) {
             refillMana(player, spirit);
+        } else if ("chakra".equals(sub)) {
+            if (args.length >= 2 && "up".equalsIgnoreCase(args[1])) {
+                upgradeChakras(player, spirit);
+            } else {
+                showChakra(player, spirit);
+            }
         } else {
             msg(player, TextFormatting.RED, "Использование: " + getUsage(sender));
             msg(player, TextFormatting.GRAY, "/rudazovmod craft <mode> <target> <form> <element> <power>");
             msg(player, TextFormatting.GRAY, "/rudazovmod bind <1-4> <spell_id>");
+            msg(player, TextFormatting.GRAY, "/rudazovmod chakra [up]");
         }
     }
 
     @Override
     public List<String> getTabCompletions(MinecraftServer server, ICommandSender sender, String[] args, BlockPos pos) {
         if (args.length == 1) {
-            return getListOfStringsMatchingLastWord(args, "unlock", "bind", "craft", "list", "mana");
+            return getListOfStringsMatchingLastWord(args, "unlock", "bind", "craft", "list", "mana", "chakra");
+        }
+        if ("chakra".equalsIgnoreCase(args[0]) && args.length == 2) {
+            return getListOfStringsMatchingLastWord(args, "up");
         }
         String sub = args[0].toLowerCase();
         if ("unlock".equals(sub) && args.length == 2) {
@@ -117,6 +130,42 @@ public class CommandRudazov extends CommandBase {
                 player);
         msg(player, TextFormatting.AQUA, "Мана восстановлена: "
                 + (int) spirit.getMana() + " / " + (int) spirit.getMaxMana());
+    }
+
+    private static void showChakra(EntityPlayerMP player, IActiveSpirit spirit) {
+        msg(player, TextFormatting.GOLD, "Чакры: " + spirit.getChakraLevel()
+                + " / " + SpellProgression.MAX_CHAKRA);
+        msg(player, TextFormatting.AQUA, "Мана: "
+                + formatNum(spirit.getMana()) + " / " + formatNum(spirit.getMaxMana())
+                + " (потолок практики " + formatNum(SpellProgression.practiceCap(spirit.getChakraLevel())) + ")");
+        StringBuilder forms = new StringBuilder("Формы:");
+        for (Form form : Form.values()) {
+            forms.append(' ').append(form.name()).append('=')
+                    .append(formatNum(spirit.getFormMastery(form)));
+        }
+        msg(player, TextFormatting.WHITE, forms.toString());
+        StringBuilder elements = new StringBuilder("Стихии:");
+        for (SpellElement element : SpellElement.values()) {
+            elements.append(' ').append(element.name()).append('=')
+                    .append(formatNum(spirit.getElementMastery(element)));
+        }
+        msg(player, TextFormatting.WHITE, elements.toString());
+        msg(player, TextFormatting.GRAY, "Прокачка: /rudazovmod chakra up");
+    }
+
+    private static void upgradeChakras(EntityPlayerMP player, IActiveSpirit spirit) {
+        if (spirit.getChakraLevel() >= SpellProgression.MAX_CHAKRA) {
+            msg(player, TextFormatting.RED, "Чакры уже на максимуме ("
+                    + SpellProgression.MAX_CHAKRA + ").");
+            return;
+        }
+        spirit.upgradeChakras();
+        PacketHandler.INSTANCE.sendTo(
+                new PacketSyncMana(spirit.getMana(), spirit.getMaxMana(), spirit.getChakraLevel()),
+                player);
+        PacketSyncSpirit.sendTo(player);
+        msg(player, TextFormatting.GREEN, "Чакры повышены до " + spirit.getChakraLevel()
+                + ". Макс. мана: " + formatNum(spirit.getMaxMana()));
     }
 
     private static void unlock(EntityPlayerMP player, IActiveSpirit spirit, String rawId) {
@@ -208,6 +257,19 @@ public class CommandRudazov extends CommandBase {
             }
             return;
         }
+        int need = SpellProgression.requiredChakra(form.get(), target.get(), mode.get(), element.get(), power);
+        if (spirit.getChakraLevel() < need) {
+            msg(player, TextFormatting.RED, "Нужен уровень чакр " + need
+                    + " (сейчас " + spirit.getChakraLevel() + ").");
+            return;
+        }
+        float cap = SpellProgression.maxPower(spirit.getChakraLevel());
+        if (power > cap) {
+            msg(player, TextFormatting.RED, "Сила " + formatNum(power)
+                    + " недоступна на чакрах " + spirit.getChakraLevel()
+                    + " (макс. " + formatNum(cap) + ").");
+            return;
+        }
 
         Optional<SpellDefinition> made = SpellBook.craft(
                 player, mode.get(), target.get(), form.get(), element.get(), power, -1);
@@ -217,7 +279,7 @@ public class CommandRudazov extends CommandBase {
         }
         SpellDefinition spell = made.get();
         msg(player, TextFormatting.GREEN, "Собрано: " + spell.id());
-        msg(player, TextFormatting.GRAY, formatSpell(spell));
+        msg(player, TextFormatting.GRAY, formatSpell(spirit, spell));
         msg(player, TextFormatting.GRAY, "Привязка: /rudazovmod bind 1 " + spell.id());
     }
 
@@ -227,19 +289,34 @@ public class CommandRudazov extends CommandBase {
             msg(player, TextFormatting.GRAY, "  (пусто)");
         } else {
             for (SpellDefinition spell : spirit.getGrimoire()) {
-                msg(player, TextFormatting.WHITE, "  " + spell.id() + " — " + formatSpell(spell));
+                msg(player, lockColor(spirit, spell), "  " + spell.id() + " — " + formatSpell(spirit, spell));
             }
         }
         msg(player, TextFormatting.GOLD, "Пресеты:");
         for (SpellDefinition spell : SpellRegistry.all()) {
             String mark = spirit.isSpellUnlocked(spell.id().toString()) ? "*" : " ";
-            msg(player, TextFormatting.WHITE, "  " + mark + " " + spell.id() + " — " + formatSpell(spell));
+            msg(player, lockColor(spirit, spell),
+                    "  " + mark + " " + spell.id() + " — " + formatSpell(spirit, spell));
         }
     }
 
-    private static String formatSpell(SpellDefinition spell) {
+    private static TextFormatting lockColor(IActiveSpirit spirit, SpellDefinition spell) {
+        return SpellProgression.meetsChakra(spirit.getChakraLevel(), spell)
+                ? TextFormatting.WHITE
+                : TextFormatting.DARK_GRAY;
+    }
+
+    private static String formatSpell(IActiveSpirit spirit, SpellDefinition spell) {
+        float cost = SpellCost.of(
+                spell, spirit.getFormMastery(spell.form()), spirit.getElementMastery(spell.element()));
+        int need = SpellProgression.requiredChakra(spell);
+        String lock = spirit.getChakraLevel() >= need ? "" : " [чакры " + need + "]";
         return spell.castMode() + " " + spell.targetType() + " " + spell.form() + " " + spell.element()
-                + " p=" + spell.power() + " cost=" + spell.cost();
+                + " p=" + spell.power() + " cost=" + formatNum(cost) + lock;
+    }
+
+    private static String formatNum(float value) {
+        return String.format(Locale.ROOT, "%.1f", value);
     }
 
     private static List<String> knownIds(ICommandSender sender) {

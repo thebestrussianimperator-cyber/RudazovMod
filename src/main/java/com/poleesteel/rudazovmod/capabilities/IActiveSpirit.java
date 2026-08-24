@@ -1,6 +1,8 @@
 package com.poleesteel.rudazovmod.capabilities;
 
+import com.poleesteel.rudazovmod.spell.api.Form;
 import com.poleesteel.rudazovmod.spell.api.SpellDefinition;
+import com.poleesteel.rudazovmod.spell.api.SpellElement;
 
 import java.util.Collection;
 import java.util.Map;
@@ -19,6 +21,11 @@ public interface IActiveSpirit {
     boolean consumeMana(float amount);
     void regenerate();
     void upgradeChakras();
+
+    float getFormMastery(Form form);
+    float getElementMastery(SpellElement element);
+    void setFormMastery(Form form, float value);
+    void setElementMastery(SpellElement element, float value);
 
     void unlockSpell(String spellId);
     boolean isSpellUnlocked(String spellId);

@@ -1,6 +1,8 @@
 package com.poleesteel.rudazovmod.capabilities;
 
+import com.poleesteel.rudazovmod.spell.api.Form;
 import com.poleesteel.rudazovmod.spell.api.SpellDefinition;
+import com.poleesteel.rudazovmod.spell.api.SpellElement;
 import net.minecraft.nbt.NBTBase;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
@@ -21,6 +23,7 @@ public class ActiveSpiritStorage implements IStorage<IActiveSpirit> {
         tag.setFloat("CurrentMana", instance.getMana());
         tag.setFloat("MaxMana", instance.getMaxMana());
         tag.setInteger("ChakraLevel", instance.getChakraLevel());
+        writeMastery(instance, tag);
         writeBook(instance, tag);
         return tag;
     }
@@ -29,17 +32,21 @@ public class ActiveSpiritStorage implements IStorage<IActiveSpirit> {
     public void readNBT(Capability<IActiveSpirit> capability, IActiveSpirit instance, EnumFacing side, NBTBase nbt) {
         if (nbt instanceof NBTTagCompound) {
             NBTTagCompound tag = (NBTTagCompound) nbt;
-            instance.setMana(tag.getFloat("CurrentMana"));
             instance.setMaxMana(tag.getFloat("MaxMana"));
-            instance.setChakraLevel(tag.getInteger("ChakraLevel"));
+            instance.setMana(tag.getFloat("CurrentMana"));
+            if (tag.hasKey("ChakraLevel", Constants.NBT.TAG_ANY_NUMERIC)) {
+                instance.setChakraLevel(tag.getInteger("ChakraLevel"));
+            }
+            readMastery(instance, tag);
             readBook(instance, tag);
         }
     }
 
-    /** Unlock / bind / гримуар — без маны. Для PacketSyncSpirit. */
+    /** Unlock / bind / гримуар / мастерство — без маны. Для PacketSyncSpirit. */
     public static NBTTagCompound writeBookNBT(IActiveSpirit instance) {
         NBTTagCompound tag = new NBTTagCompound();
         writeBook(instance, tag);
+        writeMastery(instance, tag);
         return tag;
     }
 
@@ -49,6 +56,7 @@ public class ActiveSpiritStorage implements IStorage<IActiveSpirit> {
         instance.clearGrimoire();
         if (tag != null) {
             readBook(instance, tag);
+            readMastery(instance, tag);
         }
     }
 
@@ -97,6 +105,39 @@ public class ActiveSpiritStorage implements IStorage<IActiveSpirit> {
                 Optional<SpellDefinition> spell = SpellDefinition.readNBT(grimoireList.getCompoundTagAt(i));
                 if (spell.isPresent()) {
                     instance.putSpell(spell.get());
+                }
+            }
+        }
+    }
+
+    private static void writeMastery(IActiveSpirit instance, NBTTagCompound tag) {
+        NBTTagCompound forms = new NBTTagCompound();
+        for (Form form : Form.values()) {
+            forms.setFloat(form.name(), instance.getFormMastery(form));
+        }
+        tag.setTag("FormMastery", forms);
+
+        NBTTagCompound elements = new NBTTagCompound();
+        for (SpellElement element : SpellElement.values()) {
+            elements.setFloat(element.name(), instance.getElementMastery(element));
+        }
+        tag.setTag("ElementMastery", elements);
+    }
+
+    private static void readMastery(IActiveSpirit instance, NBTTagCompound tag) {
+        if (tag.hasKey("FormMastery", Constants.NBT.TAG_COMPOUND)) {
+            NBTTagCompound forms = tag.getCompoundTag("FormMastery");
+            for (Form form : Form.values()) {
+                if (forms.hasKey(form.name(), Constants.NBT.TAG_ANY_NUMERIC)) {
+                    instance.setFormMastery(form, forms.getFloat(form.name()));
+                }
+            }
+        }
+        if (tag.hasKey("ElementMastery", Constants.NBT.TAG_COMPOUND)) {
+            NBTTagCompound elements = tag.getCompoundTag("ElementMastery");
+            for (SpellElement element : SpellElement.values()) {
+                if (elements.hasKey(element.name(), Constants.NBT.TAG_ANY_NUMERIC)) {
+                    instance.setElementMastery(element, elements.getFloat(element.name()));
                 }
             }
         }

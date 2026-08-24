@@ -16,7 +16,8 @@ import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
 /**
- * S→C: unlock, bind и гримуар. Не каждый тик — только когда книга меняется или клиент пересобирает игрока.
+ * S→C: unlock, bind, гримуар и мастерство осей.
+ * Не каждый тик — книга, логин/респавн и после практики/прокачки чакр.
  */
 public class PacketSyncSpirit implements IMessage {
 

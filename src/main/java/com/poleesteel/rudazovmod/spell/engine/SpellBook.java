@@ -8,6 +8,7 @@ import com.poleesteel.rudazovmod.spell.api.Form;
 import com.poleesteel.rudazovmod.spell.api.SpellCombination;
 import com.poleesteel.rudazovmod.spell.api.SpellDefinition;
 import com.poleesteel.rudazovmod.spell.api.SpellElement;
+import com.poleesteel.rudazovmod.spell.api.SpellProgression;
 import com.poleesteel.rudazovmod.spell.api.TargetType;
 import net.minecraft.entity.player.EntityPlayer;
 
@@ -49,6 +50,13 @@ public final class SpellBook {
 
         IActiveSpirit spirit = player.getCapability(ActiveSpiritProvider.ACTIVE_SPIRIT_CAP, null);
         if (spirit == null) {
+            return Optional.empty();
+        }
+        float cap = SpellProgression.maxPower(spirit.getChakraLevel());
+        if (power > cap) {
+            power = cap;
+        }
+        if (!SpellProgression.meetsChakra(spirit.getChakraLevel(), form, target, mode, element, power)) {
             return Optional.empty();
         }
 

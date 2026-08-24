@@ -3,12 +3,15 @@ package com.poleesteel.rudazovmod.spell.engine;
 import com.poleesteel.rudazovmod.RudazovMod;
 import com.poleesteel.rudazovmod.capabilities.ActiveSpiritProvider;
 import com.poleesteel.rudazovmod.capabilities.IActiveSpirit;
+import com.poleesteel.rudazovmod.network.PacketSyncSpirit;
 import com.poleesteel.rudazovmod.spell.api.CastContext;
 import com.poleesteel.rudazovmod.spell.api.CastMode;
 import com.poleesteel.rudazovmod.spell.api.Form;
 import com.poleesteel.rudazovmod.spell.api.FormHandler;
 import com.poleesteel.rudazovmod.spell.api.SpellCombination;
+import com.poleesteel.rudazovmod.spell.api.SpellCost;
 import com.poleesteel.rudazovmod.spell.api.SpellDefinition;
+import com.poleesteel.rudazovmod.spell.api.SpellProgression;
 import com.poleesteel.rudazovmod.spell.api.SpellTarget;
 import com.poleesteel.rudazovmod.spell.api.TargetResolver;
 import com.poleesteel.rudazovmod.spell.api.TargetType;
@@ -74,12 +77,44 @@ public final class SpellEngine {
         return startCast(caster, spellId == null ? null : spellId.toString());
     }
 
+    /**
+     * Матрица, чакры, мастерство и мана. Без resolve цели — для проверки до каста.
+     */
+    public static boolean canCast(EntityPlayer caster, SpellDefinition spell) {
+        if (caster == null || spell == null || !SpellCombination.canCast(spell)) {
+            return false;
+        }
+        IActiveSpirit spirit = caster.getCapability(ActiveSpiritProvider.ACTIVE_SPIRIT_CAP, null);
+        if (spirit == null) {
+            return false;
+        }
+        if (!SpellProgression.canCast(
+                spirit.getChakraLevel(),
+                spirit.getFormMastery(spell.form()),
+                spirit.getElementMastery(spell.element()),
+                spell)) {
+            return false;
+        }
+        return canAfford(caster, costOf(spirit, spell));
+    }
+
     public static boolean startCast(EntityPlayer caster, SpellDefinition spell) {
         if (caster.world.isRemote) {
             return false;
         }
         if (!SpellCombination.canCast(spell)) {
             RudazovMod.LOGGER.warn("[spell] Некастуемая комбинация {}", spell.id());
+            return false;
+        }
+        IActiveSpirit spirit = caster.getCapability(ActiveSpiritProvider.ACTIVE_SPIRIT_CAP, null);
+        if (spirit == null) {
+            return false;
+        }
+        if (!SpellProgression.canCast(
+                spirit.getChakraLevel(),
+                spirit.getFormMastery(spell.form()),
+                spirit.getElementMastery(spell.element()),
+                spell)) {
             return false;
         }
 
@@ -103,7 +138,8 @@ public final class SpellEngine {
         }
         context = context.withTarget(target);
 
-        if (!canAfford(caster, spell.cost())) {
+        float cost = costOf(spirit, spell);
+        if (!canAfford(caster, cost)) {
             return false;
         }
 
@@ -116,11 +152,12 @@ public final class SpellEngine {
         }
 
         if (spell.castMode() == CastMode.INSTANT) {
-            if (!tryConsume(caster, spell.cost())) {
+            if (!tryConsume(caster, cost)) {
                 return false;
             }
             handler.onStart(context);
             handler.onEnd(context);
+            practice(caster, spell, 0);
             return true;
         }
 
@@ -159,7 +196,7 @@ public final class SpellEngine {
 
         boolean targetHeld = resolver.isStillValid(context, cast.target())
                 || handler.isTargetStillHeld(context);
-        if (!targetHeld || !tryConsume(caster, spell.cost())) {
+        if (!targetHeld || !tryConsume(caster, costOf(caster, spell))) {
             endCast(caster);
             return;
         }
@@ -183,10 +220,44 @@ public final class SpellEngine {
             return;
         }
 
+        int ticksHeld = Math.max(0, caster.ticksExisted - cast.startTick());
         CastContext context = CastContext.start(caster, spell)
                 .withTarget(cast.target())
-                .withTicksHeld(Math.max(0, caster.ticksExisted - cast.startTick()));
+                .withTicksHeld(ticksHeld);
         handler.onEnd(context);
+        if (ticksHeld > 0) {
+            practice(caster, spell, ticksHeld);
+        }
+    }
+
+    private static float costOf(EntityPlayer caster, SpellDefinition spell) {
+        return costOf(caster.getCapability(ActiveSpiritProvider.ACTIVE_SPIRIT_CAP, null), spell);
+    }
+
+    private static float costOf(IActiveSpirit spirit, SpellDefinition spell) {
+        if (spirit == null) {
+            return spell.cost();
+        }
+        return SpellCost.of(spell, spirit.getFormMastery(spell.form()), spirit.getElementMastery(spell.element()));
+    }
+
+    private static void practice(EntityPlayer caster, SpellDefinition spell, int ticksHeld) {
+        if (caster.world.isRemote) {
+            return;
+        }
+        IActiveSpirit spirit = caster.getCapability(ActiveSpiritProvider.ACTIVE_SPIRIT_CAP, null);
+        if (spirit == null) {
+            return;
+        }
+        float gain = SpellProgression.masteryGain(spell, ticksHeld);
+        spirit.setFormMastery(spell.form(), spirit.getFormMastery(spell.form()) + gain);
+        spirit.setElementMastery(spell.element(), spirit.getElementMastery(spell.element()) + gain);
+        float manaGain = SpellProgression.maxManaGain(
+                spell, ticksHeld, spirit.getMaxMana(), spirit.getChakraLevel());
+        if (manaGain > 0.0F) {
+            spirit.setMaxMana(spirit.getMaxMana() + manaGain);
+        }
+        PacketSyncSpirit.sendTo(caster);
     }
 
     private static boolean canAfford(EntityPlayer caster, float cost) {

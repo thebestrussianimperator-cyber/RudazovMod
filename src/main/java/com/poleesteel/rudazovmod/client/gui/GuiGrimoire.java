@@ -11,7 +11,9 @@ import com.poleesteel.rudazovmod.spell.api.SpellCombination;
 import com.poleesteel.rudazovmod.spell.api.SpellCost;
 import com.poleesteel.rudazovmod.spell.api.SpellDefinition;
 import com.poleesteel.rudazovmod.spell.api.SpellElement;
+import com.poleesteel.rudazovmod.spell.api.SpellProgression;
 import com.poleesteel.rudazovmod.spell.api.TargetType;
+import com.poleesteel.rudazovmod.spell.engine.SpellBook;
 import com.poleesteel.rudazovmod.spell.engine.SpellEngine;
 import com.poleesteel.rudazovmod.spell.engine.SpellRegistry;
 import net.minecraft.client.gui.GuiButton;
@@ -116,16 +118,27 @@ public class GuiGrimoire extends GuiScreen {
         this.buttonList.add(new GuiButton(ID_POWER_MINUS, cx, cy, 18, 16, "-"));
         this.buttonList.add(new GuiButton(ID_POWER_PLUS, cx + 164, cy, 18, 16, "+"));
         cy += 20;
-        this.buttonList.add(new GuiButton(ID_CRAFT, cx, cy, 184, 18, I18n.format("gui.rudazovmod.grimoire.craft")));
+        GuiButton craft = new GuiButton(ID_CRAFT, cx, cy, 184, 18, I18n.format("gui.rudazovmod.grimoire.craft"));
+        craft.enabled = comboOpen(this.form, this.target, this.mode, this.element, this.power);
+        this.buttonList.add(craft);
     }
 
     private void addEnumRow(int idBase, int x, int y, Enum<?>[] values, Enum<?> selected, int width) {
+        int col = 0;
         for (int i = 0; i < values.length; i++) {
-            GuiButton btn = new GuiButton(idBase + i, x + i * (width + 4), y, width, 16, axisName(values[i]));
-            if (values[i] == selected) {
+            Enum<?> value = values[i];
+            if (idBase == ID_FORM && value instanceof Form && !formOpen((Form) value)) {
+                continue;
+            }
+            if (idBase == ID_ELEMENT && value instanceof SpellElement && !elementOpen((SpellElement) value)) {
+                continue;
+            }
+            GuiButton btn = new GuiButton(idBase + i, x + col * (width + 4), y, width, 16, axisName(value));
+            if (value == selected) {
                 btn.packedFGColour = 0x55AAFF;
             }
             this.buttonList.add(btn);
+            col++;
         }
     }
 
@@ -149,7 +162,7 @@ public class GuiGrimoire extends GuiScreen {
         int col = 0;
         for (int i = 0; i < CastMode.values().length; i++) {
             CastMode value = CastMode.values()[i];
-            if (!SpellCombination.canCast(this.form, this.target, value)) {
+            if (!comboOpen(this.form, this.target, value, this.element, this.power)) {
                 continue;
             }
             GuiButton btn = new GuiButton(ID_MODE + i, x + col * 92, y, 88, 16, axisName(value));
@@ -180,8 +193,11 @@ public class GuiGrimoire extends GuiScreen {
         String powerText = I18n.format("gui.rudazovmod.grimoire.power") + " " + formatPower(this.power);
         this.fontRenderer.drawString(powerText, this.guiLeft + 190, this.guiTop + 143, 0xFFFFFF);
 
-        if (SpellCombination.canCast(this.form, this.target, this.mode)) {
-            float cost = SpellCost.of(this.mode, this.form, this.element, this.power);
+        if (comboOpen(this.form, this.target, this.mode, this.element, this.power)) {
+            IActiveSpirit spirit = spirit();
+            float formM = spirit == null ? 0.0F : spirit.getFormMastery(this.form);
+            float elemM = spirit == null ? 0.0F : spirit.getElementMastery(this.element);
+            float cost = SpellCost.of(this.mode, this.form, this.element, this.power, formM, elemM);
             String costKey = this.mode == CastMode.CHANNEL
                     ? "gui.rudazovmod.grimoire.cost_tick"
                     : "gui.rudazovmod.grimoire.cost_once";
@@ -233,12 +249,12 @@ public class GuiGrimoire extends GuiScreen {
             return;
         }
         if (id == ID_POWER_PLUS) {
-            this.power = Math.min(5.0F, this.power + 0.5F);
+            this.power = Math.min(guiMaxPower(), this.power + 0.5F);
             rebuild();
             return;
         }
         if (id == ID_CRAFT) {
-            if (SpellCombination.canCast(this.form, this.target, this.mode)) {
+            if (comboOpen(this.form, this.target, this.mode, this.element, this.power)) {
                 PacketHandler.INSTANCE.sendToServer(new PacketCraftSpell(
                         this.mode, this.target, this.form, this.element, this.power, this.selectedSlot));
             }
@@ -290,12 +306,29 @@ public class GuiGrimoire extends GuiScreen {
     }
 
     private void sanitizeAxes() {
-        if (SpellCombination.canCast(this.form, this.target, this.mode)) {
+        if (!formOpen(this.form)) {
+            for (Form next : Form.values()) {
+                if (formOpen(next)) {
+                    this.form = next;
+                    break;
+                }
+            }
+        }
+        if (!elementOpen(this.element)) {
+            for (SpellElement next : SpellElement.values()) {
+                if (elementOpen(next)) {
+                    this.element = next;
+                    break;
+                }
+            }
+        }
+        clampPower();
+        if (comboOpen(this.form, this.target, this.mode, this.element, this.power)) {
             return;
         }
         for (TargetType nextTarget : TargetType.values()) {
             for (CastMode nextMode : CastMode.values()) {
-                if (SpellCombination.canCast(this.form, nextTarget, nextMode)) {
+                if (comboOpen(this.form, nextTarget, nextMode, this.element, this.power)) {
                     this.target = nextTarget;
                     this.mode = nextMode;
                     return;
@@ -304,13 +337,53 @@ public class GuiGrimoire extends GuiScreen {
         }
     }
 
+    private void clampPower() {
+        this.power = Math.max(0.5F, Math.min(guiMaxPower(), this.power));
+    }
+
+    private float guiMaxPower() {
+        return Math.min(5.0F, SpellProgression.maxPower(chakra()));
+    }
+
     private boolean hasAnyMode(Form form, TargetType target) {
         for (CastMode nextMode : CastMode.values()) {
-            if (SpellCombination.canCast(form, target, nextMode)) {
+            if (comboOpen(form, target, nextMode, this.element, this.power)) {
                 return true;
             }
         }
         return false;
+    }
+
+    private boolean formOpen(Form form) {
+        int level = chakra();
+        for (TargetType target : TargetType.values()) {
+            for (CastMode mode : CastMode.values()) {
+                if (!SpellCombination.canCast(form, target, mode)) {
+                    continue;
+                }
+                for (SpellElement element : SpellElement.values()) {
+                    if (SpellProgression.meetsChakra(level, form, target, mode, element, SpellBook.MIN_POWER)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean elementOpen(SpellElement element) {
+        return SpellProgression.meetsChakra(
+                chakra(), Form.RAY, TargetType.NONE, CastMode.INSTANT, element, SpellBook.MIN_POWER);
+    }
+
+    private boolean comboOpen(Form form, TargetType target, CastMode mode, SpellElement element, float power) {
+        return SpellCombination.canCast(form, target, mode)
+                && SpellProgression.meetsChakra(chakra(), form, target, mode, element, power);
+    }
+
+    private int chakra() {
+        IActiveSpirit spirit = spirit();
+        return spirit == null ? SpellProgression.MIN_CHAKRA : spirit.getChakraLevel();
     }
 
     private int bookStamp() {
@@ -320,7 +393,8 @@ public class GuiGrimoire extends GuiScreen {
         }
         return spirit.getGrimoire().size()
                 + 31 * spirit.getUnlockedSpells().size()
-                + 17 * spirit.getBoundSpells().hashCode();
+                + 17 * spirit.getBoundSpells().hashCode()
+                + 13 * spirit.getChakraLevel();
     }
 
     private IActiveSpirit spirit() {
@@ -392,7 +466,16 @@ public class GuiGrimoire extends GuiScreen {
                     SpellDefinition spell = owned.get(index);
                     this.hoveredTip.add(spell.id().toString());
                     this.hoveredTip.add(TextFormatting.GRAY + axes(spell));
-                    this.hoveredTip.add(TextFormatting.AQUA + "cost " + formatPower(spell.cost()));
+                    IActiveSpirit spirit = spirit();
+                    float cost = spirit == null
+                            ? spell.cost()
+                            : SpellCost.of(spell, spirit.getFormMastery(spell.form()),
+                                    spirit.getElementMastery(spell.element()));
+                    this.hoveredTip.add(TextFormatting.AQUA + "cost " + formatPower(cost));
+                    int need = SpellProgression.requiredChakra(spell);
+                    if (chakra() < need) {
+                        this.hoveredTip.add(TextFormatting.RED + "чакры " + need);
+                    }
                     this.hoveredX = mouseX;
                     this.hoveredY = mouseY;
                 }

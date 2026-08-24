@@ -48,8 +48,8 @@ public class PacketSyncMana implements IMessage {
                 if (player != null) {
                     IActiveSpirit spirit = player.getCapability(ActiveSpiritProvider.ACTIVE_SPIRIT_CAP, null);
                     if (spirit != null) {
-                        spirit.setMana(message.mana);
                         spirit.setMaxMana(message.maxMana);
+                        spirit.setMana(message.mana);
                         spirit.setChakraLevel(message.chakraLevel);
                     }
                 }
