@@ -23,7 +23,8 @@ public record SpellDefinition(
         Form form,
         SpellElement element,
         float power,
-        ProjectileShape projectileShape
+        ProjectileShape projectileShape,
+        Homing homing
 ) {
     public SpellDefinition(
             ResourceLocation id,
@@ -32,7 +33,18 @@ public record SpellDefinition(
             Form form,
             SpellElement element,
             float power) {
-        this(id, castMode, targetType, form, element, power, ProjectileShape.ORB);
+        this(id, castMode, targetType, form, element, power, ProjectileShape.ORB, Homing.NONE);
+    }
+
+    public SpellDefinition(
+            ResourceLocation id,
+            CastMode castMode,
+            TargetType targetType,
+            Form form,
+            SpellElement element,
+            float power,
+            ProjectileShape projectileShape) {
+        this(id, castMode, targetType, form, element, power, projectileShape, Homing.NONE);
     }
 
     public SpellDefinition {
@@ -44,6 +56,9 @@ public record SpellDefinition(
         if (projectileShape == null) {
             projectileShape = ProjectileShape.ORB;
         }
+        if (homing == null) {
+            homing = Homing.NONE;
+        }
         if (power <= 0.0F || Float.isNaN(power) || Float.isInfinite(power)) {
             throw new IllegalArgumentException("power");
         }
@@ -53,6 +68,7 @@ public record SpellDefinition(
         }
         if (!SpellCombination.usesProjectileShape(form, targetType, castMode)) {
             projectileShape = ProjectileShape.ORB;
+            homing = Homing.NONE;
         }
     }
 
@@ -66,15 +82,22 @@ public record SpellDefinition(
 
     public static SpellDefinition createCustom(
             CastMode castMode, TargetType targetType, Form form, SpellElement element, float power) {
-        return createCustom(castMode, targetType, form, element, power, ProjectileShape.ORB);
+        return createCustom(castMode, targetType, form, element, power, ProjectileShape.ORB, Homing.NONE);
     }
 
     public static SpellDefinition createCustom(
             CastMode castMode, TargetType targetType, Form form, SpellElement element, float power,
             ProjectileShape projectileShape) {
+        return createCustom(castMode, targetType, form, element, power, projectileShape, Homing.NONE);
+    }
+
+    public static SpellDefinition createCustom(
+            CastMode castMode, TargetType targetType, Form form, SpellElement element, float power,
+            ProjectileShape projectileShape, Homing homing) {
         return new SpellDefinition(
                 newCustomId(), castMode, targetType, form, element, power,
-                projectileShape == null ? ProjectileShape.ORB : projectileShape);
+                projectileShape == null ? ProjectileShape.ORB : projectileShape,
+                homing == null ? Homing.NONE : homing);
     }
 
     public static <T extends Enum<T>> Optional<T> parseEnum(Class<T> type, String raw) {
@@ -112,6 +135,7 @@ public record SpellDefinition(
         tag.setString("Element", element.name());
         tag.setFloat("Power", power);
         tag.setString("ProjectileShape", projectileShape.name());
+        tag.setString("Homing", homing.name());
         return tag;
     }
 
@@ -133,6 +157,10 @@ public record SpellDefinition(
                 shape = parseEnum(ProjectileShape.class, nbt.getString("ProjectileShape"))
                         .orElse(ProjectileShape.ORB);
             }
+            Homing homing = Homing.NONE;
+            if (nbt.hasKey("Homing", Constants.NBT.TAG_STRING)) {
+                homing = parseEnum(Homing.class, nbt.getString("Homing")).orElse(Homing.NONE);
+            }
             SpellDefinition spell = new SpellDefinition(
                     parseId(nbt.getString("Id")),
                     parseEnum(CastMode.class, nbt.getString("CastMode")).orElseThrow(IllegalArgumentException::new),
@@ -140,7 +168,8 @@ public record SpellDefinition(
                     parseEnum(Form.class, nbt.getString("Form")).orElseThrow(IllegalArgumentException::new),
                     parseEnum(SpellElement.class, nbt.getString("Element")).orElseThrow(IllegalArgumentException::new),
                     nbt.getFloat("Power"),
-                    shape);
+                    shape,
+                    homing);
             return Optional.of(spell);
         } catch (IllegalArgumentException | NullPointerException ignored) {
             return Optional.empty();

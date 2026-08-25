@@ -3,7 +3,7 @@ package com.poleesteel.rudazovmod.spell.api;
 /**
  * Стоимость каста из осей. Не хранится в NBT и не хардкодится в записи.
  * INSTANT — один раз за каст, CHANNEL — каждый серверный тик.
- * {@code cost = modeBase * formMult * element.manaMultiplier * shape.manaMultiplier * power * (1 - masteryBonus)}
+ * {@code cost = modeBase * formMult * element.manaMultiplier * shape.manaMultiplier * homing.manaMultiplier * power * (1 - masteryBonus)}
  */
 public final class SpellCost {
 
@@ -22,7 +22,8 @@ public final class SpellCost {
     private SpellCost() {}
 
     public static float of(SpellDefinition spell) {
-        return of(spell.castMode(), spell.form(), spell.element(), spell.power(), spell.projectileShape());
+        return of(spell.castMode(), spell.form(), spell.element(), spell.power(),
+                spell.projectileShape(), spell.homing());
     }
 
     public static float of(SpellDefinition spell, float formMastery, float elementMastery) {
@@ -34,14 +35,22 @@ public final class SpellCost {
     }
 
     public static float of(CastMode mode, Form form, SpellElement element, float power, ProjectileShape shape) {
+        return of(mode, form, element, power, shape, Homing.NONE);
+    }
+
+    public static float of(
+            CastMode mode, Form form, SpellElement element, float power,
+            ProjectileShape shape, Homing homing) {
         if (mode == null || form == null || element == null) {
             throw new IllegalArgumentException("mode/form/element");
         }
         if (power <= 0.0F || Float.isNaN(power) || Float.isInfinite(power)) {
             throw new IllegalArgumentException("power");
         }
-        ProjectileShape resolved = shape == null ? ProjectileShape.ORB : shape;
-        return base(mode) * formMult(form) * element.getManaMultiplier() * resolved.manaMultiplier() * power;
+        ProjectileShape resolvedShape = shape == null ? ProjectileShape.ORB : shape;
+        Homing resolvedHoming = homing == null ? Homing.NONE : homing;
+        return base(mode) * formMult(form) * element.getManaMultiplier()
+                * resolvedShape.manaMultiplier() * resolvedHoming.manaMultiplier() * power;
     }
 
     public static float of(
@@ -53,7 +62,14 @@ public final class SpellCost {
     public static float of(
             CastMode mode, Form form, SpellElement element, float power, ProjectileShape shape,
             float formMastery, float elementMastery) {
-        return applyMastery(of(mode, form, element, power, shape), formMastery, elementMastery);
+        return of(mode, form, element, power, shape, Homing.NONE, formMastery, elementMastery);
+    }
+
+    public static float of(
+            CastMode mode, Form form, SpellElement element, float power,
+            ProjectileShape shape, Homing homing,
+            float formMastery, float elementMastery) {
+        return applyMastery(of(mode, form, element, power, shape, homing), formMastery, elementMastery);
     }
 
     public static float applyMastery(float base, float formMastery, float elementMastery) {

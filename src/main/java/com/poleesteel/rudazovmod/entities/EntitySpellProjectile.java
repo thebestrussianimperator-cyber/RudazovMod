@@ -1,9 +1,12 @@
 package com.poleesteel.rudazovmod.entities;
 
+import com.poleesteel.rudazovmod.spell.api.Homing;
 import com.poleesteel.rudazovmod.spell.api.ProjectileShape;
 import com.poleesteel.rudazovmod.spell.api.SpellDefinition;
 import com.poleesteel.rudazovmod.spell.api.SpellElement;
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.projectile.EntityThrowable;
 import net.minecraft.init.SoundEvents;
 import net.minecraft.nbt.NBTTagCompound;
@@ -13,7 +16,9 @@ import net.minecraft.network.datasync.EntityDataManager;
 import net.minecraft.util.EnumParticleTypes;
 import net.minecraft.util.SoundCategory;
 import net.minecraft.util.SoundEvent;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.RayTraceResult;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 import net.minecraft.world.WorldServer;
 
@@ -22,13 +27,15 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Универсальный магический снаряд. Вид (шар / стрела / копьё / молот) — не отдельная сущность.
+ * Универсальный магический снаряд. Вид (шар / стрела / копьё / молот) и самонаведение — не отдельная сущность.
  */
 public class EntitySpellProjectile extends EntityThrowable {
 
     private static final DataParameter<Integer> ELEMENT_ORDINAL =
             EntityDataManager.createKey(EntitySpellProjectile.class, DataSerializers.VARINT);
     private static final DataParameter<Integer> SHAPE_ORDINAL =
+            EntityDataManager.createKey(EntitySpellProjectile.class, DataSerializers.VARINT);
+    private static final DataParameter<Integer> HOMING_ORDINAL =
             EntityDataManager.createKey(EntitySpellProjectile.class, DataSerializers.VARINT);
     private static final DataParameter<Float> POWER =
             EntityDataManager.createKey(EntitySpellProjectile.class, DataSerializers.FLOAT);
@@ -37,25 +44,33 @@ public class EntitySpellProjectile extends EntityThrowable {
 
     private final Set<Integer> piercedIds = new HashSet<>();
     private int pierceLeft;
+    private int lockedTargetId = -1;
 
     public EntitySpellProjectile(World worldIn) {
         super(worldIn);
     }
 
     public EntitySpellProjectile(World worldIn, EntityLivingBase throwerIn, SpellDefinition spell) {
-        this(worldIn, throwerIn, spell.element(), spell.power(), spell.projectileShape());
+        this(worldIn, throwerIn, spell.element(), spell.power(), spell.projectileShape(), spell.homing());
     }
 
     public EntitySpellProjectile(World worldIn, EntityLivingBase throwerIn, SpellElement element, float power) {
-        this(worldIn, throwerIn, element, power, ProjectileShape.ORB);
+        this(worldIn, throwerIn, element, power, ProjectileShape.ORB, Homing.NONE);
     }
 
     public EntitySpellProjectile(
             World worldIn, EntityLivingBase throwerIn, SpellElement element, float power, ProjectileShape shape) {
+        this(worldIn, throwerIn, element, power, shape, Homing.NONE);
+    }
+
+    public EntitySpellProjectile(
+            World worldIn, EntityLivingBase throwerIn, SpellElement element, float power,
+            ProjectileShape shape, Homing homing) {
         super(worldIn, throwerIn);
         ProjectileShape resolved = shape == null ? ProjectileShape.ORB : shape;
         this.setElement(element);
         this.setShape(resolved);
+        this.setHoming(homing);
         this.setPower(power);
         this.pierceLeft = resolved.extraPierce(power);
         this.applyShapeSize();
@@ -69,6 +84,7 @@ public class EntitySpellProjectile extends EntityThrowable {
         super.entityInit();
         this.dataManager.register(ELEMENT_ORDINAL, SpellElement.FIRE.ordinal());
         this.dataManager.register(SHAPE_ORDINAL, ProjectileShape.ORB.ordinal());
+        this.dataManager.register(HOMING_ORDINAL, Homing.NONE.ordinal());
         this.dataManager.register(POWER, 1.0F);
     }
 
@@ -96,6 +112,14 @@ public class EntitySpellProjectile extends EntityThrowable {
         this.dataManager.set(SHAPE_ORDINAL, (shape == null ? ProjectileShape.ORB : shape).ordinal());
     }
 
+    public Homing getHoming() {
+        return fromOrdinal(Homing.values(), this.dataManager.get(HOMING_ORDINAL), Homing.NONE);
+    }
+
+    public void setHoming(Homing homing) {
+        this.dataManager.set(HOMING_ORDINAL, (homing == null ? Homing.NONE : homing).ordinal());
+    }
+
     public float getPower() {
         float value = this.dataManager.get(POWER);
         if (value <= 0.0F || Float.isNaN(value) || Float.isInfinite(value)) {
@@ -121,6 +145,9 @@ public class EntitySpellProjectile extends EntityThrowable {
 
     @Override
     public void onUpdate() {
+        if (!this.world.isRemote) {
+            applyHoming();
+        }
         super.onUpdate();
         if (this.isDead) {
             return;
@@ -186,8 +213,10 @@ public class EntitySpellProjectile extends EntityThrowable {
         super.writeEntityToNBT(compound);
         compound.setInteger("Element", getElement().ordinal());
         compound.setInteger("Shape", getShape().ordinal());
+        compound.setInteger("Homing", getHoming().ordinal());
         compound.setFloat("Power", getPower());
         compound.setInteger("PierceLeft", this.pierceLeft);
+        compound.setInteger("LockedTarget", this.lockedTargetId);
     }
 
     @Override
@@ -195,9 +224,159 @@ public class EntitySpellProjectile extends EntityThrowable {
         super.readEntityFromNBT(compound);
         setElement(fromOrdinal(SpellElement.values(), compound.getInteger("Element"), SpellElement.FIRE));
         setShape(fromOrdinal(ProjectileShape.values(), compound.getInteger("Shape"), ProjectileShape.ORB));
+        setHoming(fromOrdinal(Homing.values(), compound.getInteger("Homing"), Homing.NONE));
         setPower(compound.getFloat("Power"));
         this.pierceLeft = compound.getInteger("PierceLeft");
+        this.lockedTargetId = compound.getInteger("LockedTarget");
         applyShapeSize();
+    }
+
+    /**
+     * Корректирует скорость в сторону живой цели. Лимиты угла, дистанции и LOS —
+     * даже STRONG не разворачивается на месте и не видит сквозь стены.
+     */
+    private void applyHoming() {
+        Homing homing = getHoming();
+        if (homing == Homing.NONE || this.ticksExisted < homing.startDelayTicks()) {
+            return;
+        }
+        Vec3d velocity = new Vec3d(this.motionX, this.motionY, this.motionZ);
+        double speed = velocity.length();
+        if (speed < 0.05D) {
+            return;
+        }
+        EntityLivingBase target = findHomingTarget(homing, velocity.scale(1.0D / speed));
+        if (target == null) {
+            this.lockedTargetId = -1;
+            return;
+        }
+        this.lockedTargetId = target.getEntityId();
+        Vec3d toTarget = new Vec3d(
+                target.posX - this.posX,
+                target.posY + target.height * 0.5D - (this.posY + this.height * 0.5D),
+                target.posZ - this.posZ);
+        if (toTarget.lengthSquared() < 1.0E-6D) {
+            return;
+        }
+        double maxTurn = Math.toRadians(homing.maxTurnDegrees());
+        if (homing == Homing.WEAK) {
+            maxTurn *= 0.75D;
+        }
+        Vec3d steered = rotateTowards(velocity, toTarget, maxTurn);
+        this.motionX = steered.x;
+        this.motionY = steered.y;
+        this.motionZ = steered.z;
+        this.velocityChanged = true;
+    }
+
+    private EntityLivingBase findHomingTarget(Homing homing, Vec3d forward) {
+        EntityLivingBase locked = lockedLiving();
+        if (isValidHomingTarget(locked, homing, forward)) {
+            return locked;
+        }
+        double range = homing.acquireRange();
+        List<EntityLivingBase> nearby = this.world.getEntitiesWithinAABB(
+                EntityLivingBase.class, this.getEntityBoundingBox().grow(range));
+        EntityLivingBase best = null;
+        double bestDistSq = range * range;
+        for (EntityLivingBase candidate : nearby) {
+            if (!isValidHomingTarget(candidate, homing, forward)) {
+                continue;
+            }
+            double distSq = this.getDistanceSq(candidate);
+            if (distSq <= bestDistSq) {
+                bestDistSq = distSq;
+                best = candidate;
+            }
+        }
+        return best;
+    }
+
+    private EntityLivingBase lockedLiving() {
+        if (this.lockedTargetId < 0) {
+            return null;
+        }
+        Entity entity = this.world.getEntityByID(this.lockedTargetId);
+        return entity instanceof EntityLivingBase ? (EntityLivingBase) entity : null;
+    }
+
+    private boolean isValidHomingTarget(EntityLivingBase target, Homing homing, Vec3d forward) {
+        if (target == null || !target.isEntityAlive() || !target.canBeCollidedWith()) {
+            return false;
+        }
+        EntityLivingBase thrower = this.getThrower();
+        if (target == thrower || this.piercedIds.contains(target.getEntityId())) {
+            return false;
+        }
+        if (target instanceof EntityPlayer && ((EntityPlayer) target).isSpectator()) {
+            return false;
+        }
+        if (this.getDistanceSq(target) > homing.acquireRange() * homing.acquireRange()) {
+            return false;
+        }
+        Vec3d toTarget = new Vec3d(
+                target.posX - this.posX,
+                target.posY + target.height * 0.5D - (this.posY + this.height * 0.5D),
+                target.posZ - this.posZ);
+        double len = toTarget.length();
+        if (len < 1.0E-4D) {
+            return true;
+        }
+        double dot = forward.dotProduct(toTarget.scale(1.0D / len));
+        if (dot < homing.minForwardDot()) {
+            return false;
+        }
+        return hasLineOfSight(target);
+    }
+
+    private boolean hasLineOfSight(EntityLivingBase target) {
+        Vec3d from = new Vec3d(this.posX, this.posY + this.height * 0.5D, this.posZ);
+        Vec3d to = new Vec3d(target.posX, target.posY + target.height * 0.5D, target.posZ);
+        RayTraceResult hit = this.world.rayTraceBlocks(from, to, false, true, false);
+        return hit == null || hit.typeOfHit == RayTraceResult.Type.MISS;
+    }
+
+    private static Vec3d rotateTowards(Vec3d current, Vec3d desired, double maxRadians) {
+        double speed = current.length();
+        if (speed < 1.0E-6D) {
+            return current;
+        }
+        Vec3d dir = current.scale(1.0D / speed);
+        double desiredLen = desired.length();
+        if (desiredLen < 1.0E-6D) {
+            return current;
+        }
+        Vec3d want = desired.scale(1.0D / desiredLen);
+        double dot = MathHelper.clamp(dir.dotProduct(want), -1.0D, 1.0D);
+        double angle = Math.acos(dot);
+        if (angle <= 1.0E-5D) {
+            return dir.scale(speed);
+        }
+        if (angle <= maxRadians) {
+            return want.scale(speed);
+        }
+        Vec3d axis = dir.crossProduct(want);
+        double axisLen = axis.length();
+        if (axisLen < 1.0E-6D) {
+            axis = Math.abs(dir.y) < 0.9D
+                    ? dir.crossProduct(new Vec3d(0.0D, 1.0D, 0.0D))
+                    : dir.crossProduct(new Vec3d(1.0D, 0.0D, 0.0D));
+            axisLen = axis.length();
+            if (axisLen < 1.0E-6D) {
+                return dir.scale(speed);
+            }
+        }
+        axis = axis.scale(1.0D / axisLen);
+        double cos = Math.cos(maxRadians);
+        double sin = Math.sin(maxRadians);
+        Vec3d rotated = dir.scale(cos)
+                .add(axis.crossProduct(dir).scale(sin))
+                .add(axis.scale(axis.dotProduct(dir) * (1.0D - cos)));
+        double rotatedLen = rotated.length();
+        if (rotatedLen < 1.0E-6D) {
+            return dir.scale(speed);
+        }
+        return rotated.scale(speed / rotatedLen);
     }
 
     private void hitLiving(

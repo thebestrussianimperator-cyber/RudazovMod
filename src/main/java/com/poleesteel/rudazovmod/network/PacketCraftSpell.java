@@ -2,6 +2,7 @@ package com.poleesteel.rudazovmod.network;
 
 import com.poleesteel.rudazovmod.spell.api.CastMode;
 import com.poleesteel.rudazovmod.spell.api.Form;
+import com.poleesteel.rudazovmod.spell.api.Homing;
 import com.poleesteel.rudazovmod.spell.api.ProjectileShape;
 import com.poleesteel.rudazovmod.spell.api.SpellElement;
 import com.poleesteel.rudazovmod.spell.api.TargetType;
@@ -13,7 +14,7 @@ import net.minecraftforge.fml.common.network.simpleimpl.IMessageHandler;
 import net.minecraftforge.fml.common.network.simpleimpl.MessageContext;
 
 /**
- * C→S: оси конструктора. Id кастома выдаёт сервер. Слот −1 = только в гримуар.
+ * C→S: оси конструктора, включая форму снаряда и самонаведение. Id кастома выдаёт сервер. Слот −1 = только в гримуар.
  */
 public class PacketCraftSpell implements IMessage {
 
@@ -22,23 +23,31 @@ public class PacketCraftSpell implements IMessage {
     private int form;
     private int element;
     private int shape;
+    private int homing;
     private float power;
     private int bindSlot;
 
     public PacketCraftSpell() {}
 
     public PacketCraftSpell(CastMode mode, TargetType target, Form form, SpellElement element, float power, int bindSlot) {
-        this(mode, target, form, element, ProjectileShape.ORB, power, bindSlot);
+        this(mode, target, form, element, ProjectileShape.ORB, Homing.NONE, power, bindSlot);
     }
 
     public PacketCraftSpell(
             CastMode mode, TargetType target, Form form, SpellElement element,
             ProjectileShape shape, float power, int bindSlot) {
+        this(mode, target, form, element, shape, Homing.NONE, power, bindSlot);
+    }
+
+    public PacketCraftSpell(
+            CastMode mode, TargetType target, Form form, SpellElement element,
+            ProjectileShape shape, Homing homing, float power, int bindSlot) {
         this.mode = mode.ordinal();
         this.target = target.ordinal();
         this.form = form.ordinal();
         this.element = element.ordinal();
         this.shape = (shape == null ? ProjectileShape.ORB : shape).ordinal();
+        this.homing = (homing == null ? Homing.NONE : homing).ordinal();
         this.power = power;
         this.bindSlot = bindSlot;
     }
@@ -50,6 +59,7 @@ public class PacketCraftSpell implements IMessage {
         this.form = buf.readByte();
         this.element = buf.readByte();
         this.shape = buf.readByte();
+        this.homing = buf.readByte();
         this.power = buf.readFloat();
         this.bindSlot = buf.readInt();
     }
@@ -61,6 +71,7 @@ public class PacketCraftSpell implements IMessage {
         buf.writeByte(this.form);
         buf.writeByte(this.element);
         buf.writeByte(this.shape);
+        buf.writeByte(this.homing);
         buf.writeFloat(this.power);
         buf.writeInt(this.bindSlot);
     }
@@ -75,11 +86,13 @@ public class PacketCraftSpell implements IMessage {
                 Form form = ordinal(Form.values(), message.form);
                 SpellElement element = ordinal(SpellElement.values(), message.element);
                 ProjectileShape shape = ordinal(ProjectileShape.values(), message.shape);
+                Homing homing = ordinal(Homing.values(), message.homing);
                 if (mode == null || target == null || form == null || element == null) {
                     return;
                 }
                 SpellBook.craft(player, mode, target, form, element, message.power,
-                        shape == null ? ProjectileShape.ORB : shape, message.bindSlot);
+                        shape == null ? ProjectileShape.ORB : shape,
+                        homing == null ? Homing.NONE : homing, message.bindSlot);
             });
             return null;
         }

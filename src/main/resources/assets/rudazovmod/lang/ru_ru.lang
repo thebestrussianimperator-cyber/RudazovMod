@@ -43,3 +43,6 @@ spell.rudazovmod.shape.orb=Шар
 spell.rudazovmod.shape.arrow=Стрела
 spell.rudazovmod.shape.spear=Копьё
 spell.rudazovmod.shape.hammer=Молот
+spell.rudazovmod.homing.none=Прямой
+spell.rudazovmod.homing.weak=Слабое
+spell.rudazovmod.homing.strong=Сильное

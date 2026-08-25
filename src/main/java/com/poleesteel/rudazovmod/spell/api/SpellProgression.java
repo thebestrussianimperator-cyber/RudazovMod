@@ -5,9 +5,9 @@ package com.poleesteel.rudazovmod.spell.api;
  * Цифры временные — таблица должна работать, баланс подкрутим позже.
  *
  * <pre>
- * развитие 0–19.99 → ступень 1: RAY + FIRE/ICE, INSTANT, снаряды ORB/ARROW/SPEAR, power ≤ 2
- * 20–39.99 → 2: CHANNEL, HOLD, цели ITEM/BLOCK, HAMMER, power ≤ 3.5
- * 40–59.99 → 3: SELF, EARTH, LIFE, power ≤ 6
+ * развитие 0–19.99 → ступень 1: RAY + FIRE/ICE, INSTANT, снаряды ORB/ARROW/SPEAR, Homing NONE, power ≤ 2
+ * 20–39.99 → 2: CHANNEL, HOLD, цели ITEM/BLOCK, HAMMER, Homing WEAK, power ≤ 3.5
+ * 40–59.99 → 3: SELF, EARTH, LIFE, Homing STRONG, power ≤ 6
  * 60–79.99 → 4+: потолок power как у конструктора
  * 80+ → 5 и дальше (шаг 20)
  * </pre>
@@ -78,17 +78,23 @@ public final class SpellProgression {
         return spell == null
                 ? Integer.MAX_VALUE
                 : requiredChakra(spell.form(), spell.targetType(), spell.castMode(),
-                        spell.element(), spell.power(), spell.projectileShape());
+                        spell.element(), spell.power(), spell.projectileShape(), spell.homing());
     }
 
     public static int requiredChakra(
             Form form, TargetType target, CastMode mode, SpellElement element, float power) {
-        return requiredChakra(form, target, mode, element, power, ProjectileShape.ORB);
+        return requiredChakra(form, target, mode, element, power, ProjectileShape.ORB, Homing.NONE);
     }
 
     public static int requiredChakra(
             Form form, TargetType target, CastMode mode, SpellElement element, float power,
             ProjectileShape shape) {
+        return requiredChakra(form, target, mode, element, power, shape, Homing.NONE);
+    }
+
+    public static int requiredChakra(
+            Form form, TargetType target, CastMode mode, SpellElement element, float power,
+            ProjectileShape shape, Homing homing) {
         int level = MIN_CHAKRA;
         if (mode == CastMode.CHANNEL) {
             level = Math.max(level, 2);
@@ -108,6 +114,8 @@ public final class SpellProgression {
         if (shape == ProjectileShape.HAMMER) {
             level = Math.max(level, 2);
         }
+        Homing resolvedHoming = homing == null ? Homing.NONE : homing;
+        level = Math.max(level, resolvedHoming.requiredChakra());
         if (power > maxPower(1)) {
             level = Math.max(level, 2);
         }
@@ -145,22 +153,29 @@ public final class SpellProgression {
     public static boolean meetsChakra(int chakraLevel, SpellDefinition spell) {
         return spell != null && meetsChakra(
                 chakraLevel, spell.form(), spell.targetType(), spell.castMode(),
-                spell.element(), spell.power(), spell.projectileShape());
+                spell.element(), spell.power(), spell.projectileShape(), spell.homing());
     }
 
     public static boolean meetsChakra(
             int chakraLevel, Form form, TargetType target, CastMode mode, SpellElement element, float power) {
-        return meetsChakra(chakraLevel, form, target, mode, element, power, ProjectileShape.ORB);
+        return meetsChakra(chakraLevel, form, target, mode, element, power, ProjectileShape.ORB, Homing.NONE);
     }
 
     public static boolean meetsChakra(
             int chakraLevel, Form form, TargetType target, CastMode mode, SpellElement element, float power,
             ProjectileShape shape) {
+        return meetsChakra(chakraLevel, form, target, mode, element, power, shape, Homing.NONE);
+    }
+
+    public static boolean meetsChakra(
+            int chakraLevel, Form form, TargetType target, CastMode mode, SpellElement element, float power,
+            ProjectileShape shape, Homing homing) {
         if (form == null || target == null || mode == null || element == null) {
             return false;
         }
-        ProjectileShape resolved = shape == null ? ProjectileShape.ORB : shape;
-        if (chakraLevel < requiredChakra(form, target, mode, element, power, resolved)) {
+        ProjectileShape resolvedShape = shape == null ? ProjectileShape.ORB : shape;
+        Homing resolvedHoming = homing == null ? Homing.NONE : homing;
+        if (chakraLevel < requiredChakra(form, target, mode, element, power, resolvedShape, resolvedHoming)) {
             return false;
         }
         return power <= maxPower(chakraLevel) + 0.0001F;

@@ -73,4 +73,15 @@ public final class SpellCombination {
     public static boolean usesProjectileShape(Form form, TargetType target, CastMode mode) {
         return form == Form.RAY && target == TargetType.NONE && mode == CastMode.INSTANT;
     }
+
+    /**
+     * Самонаведение живёт только у снаряда. CHANNEL-луч и остальные формы его игнорируют.
+     */
+    public static boolean usesHoming(SpellDefinition spell) {
+        return usesProjectileShape(spell);
+    }
+
+    public static boolean usesHoming(Form form, TargetType target, CastMode mode) {
+        return usesProjectileShape(form, target, mode);
+    }
 }

@@ -7,6 +7,7 @@ import com.poleesteel.rudazovmod.network.PacketCraftSpell;
 import com.poleesteel.rudazovmod.network.PacketHandler;
 import com.poleesteel.rudazovmod.spell.api.CastMode;
 import com.poleesteel.rudazovmod.spell.api.Form;
+import com.poleesteel.rudazovmod.spell.api.Homing;
 import com.poleesteel.rudazovmod.spell.api.ProjectileShape;
 import com.poleesteel.rudazovmod.spell.api.SpellCombination;
 import com.poleesteel.rudazovmod.spell.api.SpellCost;
@@ -39,7 +40,7 @@ public class GuiGrimoire extends GuiScreen {
 
     private static final int PANEL_W = 360;
     private static final int PANEL_H_BASE = 220;
-    private static final int PANEL_H_SHAPE = 248;
+    private static final int AXIS_ROW_H = 28;
     private static final int LIST_VISIBLE = 7;
     private static final int ID_SLOT = 0;
     private static final int ID_FORM = 10;
@@ -50,6 +51,7 @@ public class GuiGrimoire extends GuiScreen {
     private static final int ID_POWER_PLUS = 51;
     private static final int ID_CRAFT = 60;
     private static final int ID_SHAPE = 70;
+    private static final int ID_HOMING = 80;
     private static final int ID_LIST = 100;
 
     private int guiLeft;
@@ -61,6 +63,7 @@ public class GuiGrimoire extends GuiScreen {
     private CastMode mode = CastMode.INSTANT;
     private SpellElement element = SpellElement.FIRE;
     private ProjectileShape shape = ProjectileShape.ORB;
+    private Homing homing = Homing.NONE;
     private float power = 1.0F;
     private int powerTextY;
     private int costTextY;
@@ -82,7 +85,14 @@ public class GuiGrimoire extends GuiScreen {
     }
 
     private int panelH() {
-        return showsShape() ? PANEL_H_SHAPE : PANEL_H_BASE;
+        int extra = 0;
+        if (showsShape()) {
+            extra += AXIS_ROW_H;
+        }
+        if (showsHoming()) {
+            extra += AXIS_ROW_H;
+        }
+        return PANEL_H_BASE + extra;
     }
 
     private void rebuild() {
@@ -134,13 +144,18 @@ public class GuiGrimoire extends GuiScreen {
             addShapeRow(cx, cy);
             cy += 20;
         }
+        if (showsHoming()) {
+            addHomingRow(cx, cy);
+            cy += 20;
+        }
         cy += 2;
         this.powerTextY = cy + 4;
         this.buttonList.add(new GuiButton(ID_POWER_MINUS, cx, cy, 18, 16, "-"));
         this.buttonList.add(new GuiButton(ID_POWER_PLUS, cx + 164, cy, 18, 16, "+"));
         cy += 20;
         GuiButton craft = new GuiButton(ID_CRAFT, cx, cy, 184, 18, I18n.format("gui.rudazovmod.grimoire.craft"));
-        craft.enabled = comboOpen(this.form, this.target, this.mode, this.element, this.power, this.shape);
+        craft.enabled = comboOpen(
+                this.form, this.target, this.mode, this.element, this.power, this.shape, this.homing);
         this.buttonList.add(craft);
         this.costTextY = cy + 22;
     }
@@ -154,6 +169,22 @@ public class GuiGrimoire extends GuiScreen {
             }
             GuiButton btn = new GuiButton(ID_SHAPE + i, x + col * 48, y, 44, 16, axisName(value));
             if (value == this.shape) {
+                btn.packedFGColour = 0x55AAFF;
+            }
+            this.buttonList.add(btn);
+            col++;
+        }
+    }
+
+    private void addHomingRow(int x, int y) {
+        int col = 0;
+        for (int i = 0; i < Homing.values().length; i++) {
+            Homing value = Homing.values()[i];
+            if (!homingOpen(value)) {
+                continue;
+            }
+            GuiButton btn = new GuiButton(ID_HOMING + i, x + col * 62, y, 58, 16, axisName(value));
+            if (value == this.homing) {
                 btn.packedFGColour = 0x55AAFF;
             }
             this.buttonList.add(btn);
@@ -234,11 +265,13 @@ public class GuiGrimoire extends GuiScreen {
         String powerText = I18n.format("gui.rudazovmod.grimoire.power") + " " + formatPower(this.power);
         this.fontRenderer.drawString(powerText, this.guiLeft + 190, this.powerTextY, 0xFFFFFF);
 
-        if (comboOpen(this.form, this.target, this.mode, this.element, this.power, this.shape)) {
+        if (comboOpen(this.form, this.target, this.mode, this.element, this.power, this.shape, this.homing)) {
             IActiveSpirit spirit = spirit();
             float formM = spirit == null ? 0.0F : spirit.getFormMastery(this.form);
             float elemM = spirit == null ? 0.0F : spirit.getElementMastery(this.element);
-            float cost = SpellCost.of(this.mode, this.form, this.element, this.power, effectiveShape(), formM, elemM);
+            float cost = SpellCost.of(
+                    this.mode, this.form, this.element, this.power,
+                    effectiveShape(), effectiveHoming(), formM, elemM);
             String costKey = this.mode == CastMode.CHANNEL
                     ? "gui.rudazovmod.grimoire.cost_tick"
                     : "gui.rudazovmod.grimoire.cost_once";
@@ -290,6 +323,11 @@ public class GuiGrimoire extends GuiScreen {
             rebuild();
             return;
         }
+        if (id >= ID_HOMING && id < ID_HOMING + Homing.values().length) {
+            this.homing = Homing.values()[id - ID_HOMING];
+            rebuild();
+            return;
+        }
         if (id == ID_POWER_MINUS) {
             this.power = Math.max(0.5F, this.power - 0.5F);
             rebuild();
@@ -301,9 +339,10 @@ public class GuiGrimoire extends GuiScreen {
             return;
         }
         if (id == ID_CRAFT) {
-            if (comboOpen(this.form, this.target, this.mode, this.element, this.power, this.shape)) {
+            if (comboOpen(this.form, this.target, this.mode, this.element, this.power, this.shape, this.homing)) {
                 PacketHandler.INSTANCE.sendToServer(new PacketCraftSpell(
-                        this.mode, this.target, this.form, this.element, effectiveShape(), this.power, this.selectedSlot));
+                        this.mode, this.target, this.form, this.element,
+                        effectiveShape(), effectiveHoming(), this.power, this.selectedSlot));
             }
             return;
         }
@@ -385,16 +424,30 @@ public class GuiGrimoire extends GuiScreen {
                 }
             }
         }
-        if (comboOpen(this.form, this.target, this.mode, this.element, this.power, this.shape)) {
+        if (!showsHoming() || !homingOpen(this.homing)) {
+            this.homing = Homing.NONE;
+            if (showsHoming() && !homingOpen(this.homing)) {
+                for (Homing next : Homing.values()) {
+                    if (homingOpen(next)) {
+                        this.homing = next;
+                        break;
+                    }
+                }
+            }
+        }
+        if (comboOpen(this.form, this.target, this.mode, this.element, this.power, this.shape, this.homing)) {
             return;
         }
         for (TargetType nextTarget : TargetType.values()) {
             for (CastMode nextMode : CastMode.values()) {
-                if (comboOpen(this.form, nextTarget, nextMode, this.element, this.power, this.shape)) {
+                if (comboOpen(this.form, nextTarget, nextMode, this.element, this.power, this.shape, this.homing)) {
                     this.target = nextTarget;
                     this.mode = nextMode;
                     if (!showsShape()) {
                         this.shape = ProjectileShape.ORB;
+                    }
+                    if (!showsHoming()) {
+                        this.homing = Homing.NONE;
                     }
                     return;
                 }
@@ -409,6 +462,7 @@ public class GuiGrimoire extends GuiScreen {
         this.element = spell.element();
         this.power = spell.power();
         this.shape = spell.projectileShape();
+        this.homing = spell.homing();
         sanitizeAxes();
     }
 
@@ -452,20 +506,35 @@ public class GuiGrimoire extends GuiScreen {
     }
 
     private boolean comboOpen(Form form, TargetType target, CastMode mode, SpellElement element, float power) {
-        return comboOpen(form, target, mode, element, power, this.shape);
+        return comboOpen(form, target, mode, element, power, this.shape, this.homing);
     }
 
     private boolean comboOpen(
             Form form, TargetType target, CastMode mode, SpellElement element, float power, ProjectileShape shape) {
-        ProjectileShape resolved = SpellCombination.usesProjectileShape(form, target, mode)
+        return comboOpen(form, target, mode, element, power, shape, this.homing);
+    }
+
+    private boolean comboOpen(
+            Form form, TargetType target, CastMode mode, SpellElement element, float power,
+            ProjectileShape shape, Homing homing) {
+        boolean projectile = SpellCombination.usesProjectileShape(form, target, mode);
+        ProjectileShape resolvedShape = projectile
                 ? (shape == null ? ProjectileShape.ORB : shape)
                 : ProjectileShape.ORB;
+        Homing resolvedHoming = projectile
+                ? (homing == null ? Homing.NONE : homing)
+                : Homing.NONE;
         return SpellCombination.canCast(form, target, mode)
-                && SpellProgression.meetsChakra(chakra(), form, target, mode, element, power, resolved);
+                && SpellProgression.meetsChakra(
+                        chakra(), form, target, mode, element, power, resolvedShape, resolvedHoming);
     }
 
     private boolean showsShape() {
         return SpellCombination.usesProjectileShape(this.form, this.target, this.mode);
+    }
+
+    private boolean showsHoming() {
+        return SpellCombination.usesHoming(this.form, this.target, this.mode);
     }
 
     private boolean shapeOpen(ProjectileShape shape) {
@@ -473,11 +542,23 @@ public class GuiGrimoire extends GuiScreen {
             return shape == ProjectileShape.ORB;
         }
         return SpellProgression.meetsChakra(
-                chakra(), this.form, this.target, this.mode, this.element, this.power, shape);
+                chakra(), this.form, this.target, this.mode, this.element, this.power, shape, Homing.NONE);
+    }
+
+    private boolean homingOpen(Homing homing) {
+        if (homing == null || !showsHoming()) {
+            return homing == Homing.NONE;
+        }
+        return SpellProgression.meetsChakra(
+                chakra(), this.form, this.target, this.mode, this.element, this.power, this.shape, homing);
     }
 
     private ProjectileShape effectiveShape() {
         return showsShape() ? this.shape : ProjectileShape.ORB;
+    }
+
+    private Homing effectiveHoming() {
+        return showsHoming() ? this.homing : Homing.NONE;
     }
 
     private int chakra() {
@@ -597,7 +678,11 @@ public class GuiGrimoire extends GuiScreen {
 
     public static String shortName(SpellDefinition spell) {
         if (SpellCombination.usesProjectileShape(spell)) {
-            return axisName(spell.projectileShape()) + " " + axisName(spell.element());
+            String name = axisName(spell.projectileShape()) + " " + axisName(spell.element());
+            if (spell.homing() != Homing.NONE) {
+                name += " " + axisName(spell.homing());
+            }
+            return name;
         }
         return axisName(spell.form()) + " " + axisName(spell.element());
     }
@@ -607,6 +692,7 @@ public class GuiGrimoire extends GuiScreen {
                 + " / " + axisName(spell.form()) + " / " + axisName(spell.element());
         if (SpellCombination.usesProjectileShape(spell)) {
             text += " / " + axisName(spell.projectileShape());
+            text += " / " + axisName(spell.homing());
         }
         return text + " p=" + formatPower(spell.power());
     }
@@ -623,6 +709,8 @@ public class GuiGrimoire extends GuiScreen {
             kind = "element";
         } else if (value instanceof ProjectileShape) {
             kind = "shape";
+        } else if (value instanceof Homing) {
+            kind = "homing";
         } else {
             return value.name();
         }

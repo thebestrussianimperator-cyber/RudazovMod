@@ -5,6 +5,7 @@ import com.poleesteel.rudazovmod.capabilities.ActiveSpiritProvider;
 import com.poleesteel.rudazovmod.capabilities.IActiveSpirit;
 import com.poleesteel.rudazovmod.spell.api.CastMode;
 import com.poleesteel.rudazovmod.spell.api.Form;
+import com.poleesteel.rudazovmod.spell.api.Homing;
 import com.poleesteel.rudazovmod.spell.api.ProjectileShape;
 import com.poleesteel.rudazovmod.spell.api.SpellCombination;
 import com.poleesteel.rudazovmod.spell.api.SpellCost;
@@ -78,7 +79,7 @@ public class CommandRudazov extends CommandBase {
             }
         } else {
             msg(player, TextFormatting.RED, "Использование: " + getUsage(sender));
-            msg(player, TextFormatting.GRAY, "/rudazovmod craft <mode> <target> <form> <element> <power> [shape]");
+            msg(player, TextFormatting.GRAY, "/rudazovmod craft <mode> <target> <form> <element> <power> [shape] [homing]");
             msg(player, TextFormatting.GRAY, "/rudazovmod bind <1-4> <spell_id>");
             msg(player, TextFormatting.GRAY, "/rudazovmod chakra [up]  (up — отладка, +20 к развитию)");
         }
@@ -120,7 +121,17 @@ public class CommandRudazov extends CommandBase {
                 return getListOfStringsMatchingLastWord(args, enumNames(SpellElement.class));
             }
             if (args.length == 7) {
-                return getListOfStringsMatchingLastWord(args, enumNames(ProjectileShape.class));
+                List<String> names = new ArrayList<>();
+                for (String name : enumNames(ProjectileShape.class)) {
+                    names.add(name);
+                }
+                for (String name : enumNames(Homing.class)) {
+                    names.add(name);
+                }
+                return getListOfStringsMatchingLastWord(args, names);
+            }
+            if (args.length == 8) {
+                return getListOfStringsMatchingLastWord(args, enumNames(Homing.class));
             }
         }
         return Collections.emptyList();
@@ -251,13 +262,28 @@ public class CommandRudazov extends CommandBase {
         }
 
         ProjectileShape shape = ProjectileShape.ORB;
+        Homing homing = Homing.NONE;
         if (args.length >= 7) {
-            Optional<ProjectileShape> parsed = SpellDefinition.parseEnum(ProjectileShape.class, args[6]);
-            if (!parsed.isPresent()) {
-                msg(player, TextFormatting.RED, "Неизвестная форма снаряда. Варианты: " + joinNames(ProjectileShape.class));
+            Optional<ProjectileShape> parsedShape = SpellDefinition.parseEnum(ProjectileShape.class, args[6]);
+            Optional<Homing> parsedHoming = SpellDefinition.parseEnum(Homing.class, args[6]);
+            if (parsedShape.isPresent()) {
+                shape = parsedShape.get();
+                if (args.length >= 8) {
+                    Optional<Homing> extraHoming = SpellDefinition.parseEnum(Homing.class, args[7]);
+                    if (!extraHoming.isPresent()) {
+                        msg(player, TextFormatting.RED,
+                                "Неизвестное самонаведение. Варианты: " + joinNames(Homing.class));
+                        return;
+                    }
+                    homing = extraHoming.get();
+                }
+            } else if (parsedHoming.isPresent()) {
+                homing = parsedHoming.get();
+            } else {
+                msg(player, TextFormatting.RED, "Неизвестная форма снаряда или самонаведение. Shape: "
+                        + joinNames(ProjectileShape.class) + ". Homing: " + joinNames(Homing.class));
                 return;
             }
-            shape = parsed.get();
         }
 
         if (!SpellCombination.canCast(form.get(), target.get(), mode.get())) {
@@ -271,7 +297,7 @@ public class CommandRudazov extends CommandBase {
             return;
         }
         int need = SpellProgression.requiredChakra(
-                form.get(), target.get(), mode.get(), element.get(), power, shape);
+                form.get(), target.get(), mode.get(), element.get(), power, shape, homing);
         if (spirit.getChakraLevel() < need) {
             msg(player, TextFormatting.RED, "Нужна ступень чакр " + need
                     + " (сейчас " + spirit.getChakraLevel() + ").");
@@ -286,8 +312,9 @@ public class CommandRudazov extends CommandBase {
         }
 
         boolean wantedShape = shape != ProjectileShape.ORB;
+        boolean wantedHoming = homing != Homing.NONE;
         Optional<SpellDefinition> made = SpellBook.craft(
-                player, mode.get(), target.get(), form.get(), element.get(), power, shape, -1);
+                player, mode.get(), target.get(), form.get(), element.get(), power, shape, homing, -1);
         if (!made.isPresent()) {
             msg(player, TextFormatting.RED, "Не удалось собрать заклинание.");
             return;
@@ -298,6 +325,10 @@ public class CommandRudazov extends CommandBase {
         if (wantedShape && spell.projectileShape() != shape) {
             msg(player, TextFormatting.GRAY,
                     "Форма снаряда учитывается только для RAY + INSTANT + NONE; записано ORB.");
+        }
+        if (wantedHoming && spell.homing() != homing) {
+            msg(player, TextFormatting.GRAY,
+                    "Самонаведение учитывается только для RAY + INSTANT + NONE; записано NONE.");
         }
         msg(player, TextFormatting.GRAY, "Привязка: /rudazovmod bind 1 " + spell.id());
     }
@@ -330,9 +361,12 @@ public class CommandRudazov extends CommandBase {
                 spell, spirit.getFormMastery(spell.form()), spirit.getElementMastery(spell.element()));
         int need = SpellProgression.requiredChakra(spell);
         String lock = spirit.getChakraLevel() >= need ? "" : " [ступень " + need + "]";
-        String shape = SpellCombination.usesProjectileShape(spell) ? " " + spell.projectileShape() : "";
+        String extras = "";
+        if (SpellCombination.usesProjectileShape(spell)) {
+            extras = " " + spell.projectileShape() + " " + spell.homing();
+        }
         return spell.castMode() + " " + spell.targetType() + " " + spell.form() + " " + spell.element()
-                + shape + " p=" + spell.power() + " cost=" + formatNum(cost) + lock;
+                + extras + " p=" + spell.power() + " cost=" + formatNum(cost) + lock;
     }
 
     private static String formatNum(float value) {

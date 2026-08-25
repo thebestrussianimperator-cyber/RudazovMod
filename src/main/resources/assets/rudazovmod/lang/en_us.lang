@@ -43,3 +43,6 @@ spell.rudazovmod.shape.orb=Orb
 spell.rudazovmod.shape.arrow=Arrow
 spell.rudazovmod.shape.spear=Spear
 spell.rudazovmod.shape.hammer=Hammer
+spell.rudazovmod.homing.none=Straight
+spell.rudazovmod.homing.weak=Weak
+spell.rudazovmod.homing.strong=Strong
