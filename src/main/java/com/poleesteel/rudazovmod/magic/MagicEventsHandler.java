@@ -2,7 +2,6 @@ package com.poleesteel.rudazovmod.magic;
 
 import com.poleesteel.rudazovmod.capabilities.ActiveSpiritProvider;
 import com.poleesteel.rudazovmod.capabilities.IActiveSpirit;
-import com.poleesteel.rudazovmod.network.PacketHandler;
 import com.poleesteel.rudazovmod.network.PacketSyncMana;
 import com.poleesteel.rudazovmod.network.PacketSyncSpirit;
 import com.poleesteel.rudazovmod.spell.engine.SpellEngine;
@@ -43,10 +42,7 @@ public class MagicEventsHandler {
 
                 // Синхронизируем с клиентом раз в 5 тиков (0.25 сек)
                 if (event.player.ticksExisted % 5 == 0 && event.player instanceof EntityPlayerMP) {
-                    PacketHandler.INSTANCE.sendTo(
-                            new PacketSyncMana(spirit.getMana(), spirit.getMaxMana(), spirit.getChakraLevel()),
-                            (EntityPlayerMP) event.player
-                    );
+                    PacketSyncMana.sendTo(event.player);
                 }
             }
         }
@@ -77,15 +73,18 @@ public class MagicEventsHandler {
     @SubscribeEvent
     public void onLogin(PlayerLoggedInEvent event) {
         PacketSyncSpirit.sendTo(event.player);
+        PacketSyncMana.sendTo(event.player);
     }
 
     @SubscribeEvent
     public void onRespawn(PlayerRespawnEvent event) {
         PacketSyncSpirit.sendTo(event.player);
+        PacketSyncMana.sendTo(event.player);
     }
 
     @SubscribeEvent
     public void onChangedDimension(PlayerChangedDimensionEvent event) {
         PacketSyncSpirit.sendTo(event.player);
+        PacketSyncMana.sendTo(event.player);
     }
 }

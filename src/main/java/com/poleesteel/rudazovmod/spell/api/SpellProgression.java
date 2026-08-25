@@ -1,20 +1,23 @@
 package com.poleesteel.rudazovmod.spell.api;
 
 /**
- * Прогрессия осей: чакры открывают комбинации, мастерство копится от каста.
+ * Прогрессия осей: непрерывное развитие духа, ступень открывает комбинации.
  * Цифры временные — таблица должна работать, баланс подкрутим позже.
  *
  * <pre>
- * 1: RAY + FIRE/ICE, INSTANT, power ≤ 2
- * 2: CHANNEL, HOLD, цели ITEM/BLOCK, power ≤ 3.5
- * 3: SELF, EARTH, LIFE, power ≤ 6
- * 4+: потолок power как у конструктора
+ * развитие 0–19.99 → ступень 1: RAY + FIRE/ICE, INSTANT, power ≤ 2
+ * 20–39.99 → 2: CHANNEL, HOLD, цели ITEM/BLOCK, power ≤ 3.5
+ * 40–59.99 → 3: SELF, EARTH, LIFE, power ≤ 6
+ * 60–79.99 → 4+: потолок power как у конструктора
+ * 80+ → 5 и дальше (шаг 20)
  * </pre>
  */
 public final class SpellProgression {
 
     public static final int MIN_CHAKRA = 1;
     public static final int MAX_CHAKRA = 7;
+    /** Ширина одной ступени по {@code spiritDevelopment}. */
+    public static final float STAGE_WIDTH = 20.0F;
 
     public static final float MASTERY_MIN = 0.0F;
     public static final float MASTERY_MAX = 100.0F;
@@ -26,6 +29,50 @@ public final class SpellProgression {
     public static final float PRACTICE_MANA_ROOM = 80.0F;
 
     private SpellProgression() {}
+
+    public static int stageOf(float development) {
+        float value = clampDevelopment(development);
+        int stage = MIN_CHAKRA + (int) (value / STAGE_WIDTH);
+        return Math.max(MIN_CHAKRA, Math.min(MAX_CHAKRA, stage));
+    }
+
+    /** Нижняя граница ступени (ступень 1 = 0, ступень 2 = 20, …). */
+    public static float stageStart(int stage) {
+        int level = Math.max(MIN_CHAKRA, Math.min(MAX_CHAKRA, stage));
+        return STAGE_WIDTH * (level - 1);
+    }
+
+    /** Порог следующей ступени; на максимуме — {@link Float#POSITIVE_INFINITY}. */
+    public static float nextStageAt(int stage) {
+        if (stage >= MAX_CHAKRA) {
+            return Float.POSITIVE_INFINITY;
+        }
+        return STAGE_WIDTH * Math.max(MIN_CHAKRA, stage);
+    }
+
+    public static float clampDevelopment(float value) {
+        if (Float.isNaN(value) || Float.isInfinite(value)) {
+            return 0.0F;
+        }
+        return Math.max(0.0F, value);
+    }
+
+    /**
+     * Прирост развития духа за каст. Медленнее мастерства: ~80–120 кастов на ступень
+     * при типичном RAY INSTANT power 2.
+     */
+    public static float developmentGain(SpellDefinition spell, int ticksHeld) {
+        if (spell == null) {
+            return 0.0F;
+        }
+        float gain = 0.12F + 0.06F * Math.min(spell.power(), 5.0F);
+        if (spell.castMode() == CastMode.CHANNEL) {
+            float seconds = Math.max(ticksHeld, 1) / 20.0F;
+            gain *= Math.min(2.0F, Math.max(0.25F, seconds));
+            return Math.min(0.70F, gain);
+        }
+        return Math.min(0.35F, gain);
+    }
 
     public static int requiredChakra(SpellDefinition spell) {
         return spell == null

@@ -183,6 +183,9 @@ public class GuiGrimoire extends GuiScreen {
         this.fontRenderer.drawString(
                 I18n.format("gui.rudazovmod.grimoire.title"),
                 this.guiLeft + 8, this.guiTop + 5, 0xFFFFFF);
+        String stageText = stageLabel();
+        int stageWidth = this.fontRenderer.getStringWidth(stageText);
+        this.fontRenderer.drawString(stageText, this.guiLeft + PANEL_W - 8 - stageWidth, this.guiTop + 5, 0xFFD080);
         this.fontRenderer.drawString(
                 I18n.format("gui.rudazovmod.grimoire.spells"),
                 this.guiLeft + 8, this.guiTop + 46, 0xAAAAAA);
@@ -394,7 +397,20 @@ public class GuiGrimoire extends GuiScreen {
         return spirit.getGrimoire().size()
                 + 31 * spirit.getUnlockedSpells().size()
                 + 17 * spirit.getBoundSpells().hashCode()
-                + 13 * spirit.getChakraLevel();
+                + 13 * spirit.getChakraLevel()
+                + Float.floatToIntBits(spirit.getSpiritDevelopment());
+    }
+
+    private String stageLabel() {
+        IActiveSpirit spirit = spirit();
+        int stage = spirit == null ? SpellProgression.MIN_CHAKRA : spirit.getChakraLevel();
+        float development = spirit == null ? 0.0F : spirit.getSpiritDevelopment();
+        float next = SpellProgression.nextStageAt(stage);
+        if (Float.isInfinite(next)) {
+            return I18n.format("gui.rudazovmod.grimoire.stage", String.valueOf(stage));
+        }
+        return I18n.format("gui.rudazovmod.grimoire.stage_next",
+                String.valueOf(stage), formatPower(development), formatPower(next));
     }
 
     private IActiveSpirit spirit() {
@@ -474,7 +490,7 @@ public class GuiGrimoire extends GuiScreen {
                     this.hoveredTip.add(TextFormatting.AQUA + "cost " + formatPower(cost));
                     int need = SpellProgression.requiredChakra(spell);
                     if (chakra() < need) {
-                        this.hoveredTip.add(TextFormatting.RED + "чакры " + need);
+                        this.hoveredTip.add(TextFormatting.RED + I18n.format("gui.rudazovmod.grimoire.need_stage", need));
                     }
                     this.hoveredX = mouseX;
                     this.hoveredY = mouseY;

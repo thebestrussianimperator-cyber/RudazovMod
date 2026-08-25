@@ -19,6 +19,11 @@ gui.rudazovmod.grimoire.power=Сила
 gui.rudazovmod.grimoire.cost=Стоимость
 gui.rudazovmod.grimoire.cost_once=(разово)
 gui.rudazovmod.grimoire.cost_tick=(за тик)
+gui.rudazovmod.grimoire.stage=Ступень %s
+gui.rudazovmod.grimoire.stage_next=Ступень %s (%s / %s)
+gui.rudazovmod.grimoire.need_stage=ступень %s
+gui.rudazovmod.hud.stage=ст. %s
+gui.rudazovmod.hud.stage_next=ст. %s (%s/%s)
 gui.rudazovmod.slot=Слот %s
 
 spell.rudazovmod.form.ray=Луч

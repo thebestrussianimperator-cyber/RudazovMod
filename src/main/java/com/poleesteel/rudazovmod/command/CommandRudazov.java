@@ -11,7 +11,6 @@ import com.poleesteel.rudazovmod.spell.api.SpellDefinition;
 import com.poleesteel.rudazovmod.spell.api.SpellElement;
 import com.poleesteel.rudazovmod.spell.api.SpellProgression;
 import com.poleesteel.rudazovmod.spell.api.TargetType;
-import com.poleesteel.rudazovmod.network.PacketHandler;
 import com.poleesteel.rudazovmod.network.PacketSyncMana;
 import com.poleesteel.rudazovmod.network.PacketSyncSpirit;
 import com.poleesteel.rudazovmod.spell.engine.SpellBook;
@@ -80,7 +79,7 @@ public class CommandRudazov extends CommandBase {
             msg(player, TextFormatting.RED, "Использование: " + getUsage(sender));
             msg(player, TextFormatting.GRAY, "/rudazovmod craft <mode> <target> <form> <element> <power>");
             msg(player, TextFormatting.GRAY, "/rudazovmod bind <1-4> <spell_id>");
-            msg(player, TextFormatting.GRAY, "/rudazovmod chakra [up]");
+            msg(player, TextFormatting.GRAY, "/rudazovmod chakra [up]  (up — отладка, +20 к развитию)");
         }
     }
 
@@ -125,16 +124,13 @@ public class CommandRudazov extends CommandBase {
 
     private static void refillMana(EntityPlayerMP player, IActiveSpirit spirit) {
         spirit.setMana(spirit.getMaxMana());
-        PacketHandler.INSTANCE.sendTo(
-                new PacketSyncMana(spirit.getMana(), spirit.getMaxMana(), spirit.getChakraLevel()),
-                player);
+        PacketSyncMana.sendTo(player);
         msg(player, TextFormatting.AQUA, "Мана восстановлена: "
                 + (int) spirit.getMana() + " / " + (int) spirit.getMaxMana());
     }
 
     private static void showChakra(EntityPlayerMP player, IActiveSpirit spirit) {
-        msg(player, TextFormatting.GOLD, "Чакры: " + spirit.getChakraLevel()
-                + " / " + SpellProgression.MAX_CHAKRA);
+        msg(player, TextFormatting.GOLD, formatStage(spirit));
         msg(player, TextFormatting.AQUA, "Мана: "
                 + formatNum(spirit.getMana()) + " / " + formatNum(spirit.getMaxMana())
                 + " (потолок практики " + formatNum(SpellProgression.practiceCap(spirit.getChakraLevel())) + ")");
@@ -150,22 +146,25 @@ public class CommandRudazov extends CommandBase {
                     .append(formatNum(spirit.getElementMastery(element)));
         }
         msg(player, TextFormatting.WHITE, elements.toString());
-        msg(player, TextFormatting.GRAY, "Прокачка: /rudazovmod chakra up");
+        msg(player, TextFormatting.GRAY, "Рост ступени — от кастов. Отладка: /rudazovmod chakra up");
     }
 
     private static void upgradeChakras(EntityPlayerMP player, IActiveSpirit spirit) {
-        if (spirit.getChakraLevel() >= SpellProgression.MAX_CHAKRA) {
-            msg(player, TextFormatting.RED, "Чакры уже на максимуме ("
-                    + SpellProgression.MAX_CHAKRA + ").");
-            return;
-        }
         spirit.upgradeChakras();
-        PacketHandler.INSTANCE.sendTo(
-                new PacketSyncMana(spirit.getMana(), spirit.getMaxMana(), spirit.getChakraLevel()),
-                player);
+        PacketSyncMana.sendTo(player);
         PacketSyncSpirit.sendTo(player);
-        msg(player, TextFormatting.GREEN, "Чакры повышены до " + spirit.getChakraLevel()
-                + ". Макс. мана: " + formatNum(spirit.getMaxMana()));
+        msg(player, TextFormatting.GREEN, "Отладка: развитие +"
+                + formatNum(SpellProgression.STAGE_WIDTH) + " → " + formatStage(spirit));
+    }
+
+    private static String formatStage(IActiveSpirit spirit) {
+        int stage = spirit.getChakraLevel();
+        float development = spirit.getSpiritDevelopment();
+        float next = SpellProgression.nextStageAt(stage);
+        if (Float.isInfinite(next)) {
+            return "Ступень " + stage + " (" + formatNum(development) + ")";
+        }
+        return "Ступень " + stage + " (" + formatNum(development) + " / " + formatNum(next) + ")";
     }
 
     private static void unlock(EntityPlayerMP player, IActiveSpirit spirit, String rawId) {
@@ -259,14 +258,14 @@ public class CommandRudazov extends CommandBase {
         }
         int need = SpellProgression.requiredChakra(form.get(), target.get(), mode.get(), element.get(), power);
         if (spirit.getChakraLevel() < need) {
-            msg(player, TextFormatting.RED, "Нужен уровень чакр " + need
+            msg(player, TextFormatting.RED, "Нужна ступень чакр " + need
                     + " (сейчас " + spirit.getChakraLevel() + ").");
             return;
         }
         float cap = SpellProgression.maxPower(spirit.getChakraLevel());
         if (power > cap) {
             msg(player, TextFormatting.RED, "Сила " + formatNum(power)
-                    + " недоступна на чакрах " + spirit.getChakraLevel()
+                    + " недоступна на ступени " + spirit.getChakraLevel()
                     + " (макс. " + formatNum(cap) + ").");
             return;
         }
@@ -310,7 +309,7 @@ public class CommandRudazov extends CommandBase {
         float cost = SpellCost.of(
                 spell, spirit.getFormMastery(spell.form()), spirit.getElementMastery(spell.element()));
         int need = SpellProgression.requiredChakra(spell);
-        String lock = spirit.getChakraLevel() >= need ? "" : " [чакры " + need + "]";
+        String lock = spirit.getChakraLevel() >= need ? "" : " [ступень " + need + "]";
         return spell.castMode() + " " + spell.targetType() + " " + spell.form() + " " + spell.element()
                 + " p=" + spell.power() + " cost=" + formatNum(cost) + lock;
     }

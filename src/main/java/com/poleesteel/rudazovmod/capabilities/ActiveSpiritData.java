@@ -18,7 +18,7 @@ import java.util.Set;
 public class ActiveSpiritData implements IActiveSpirit {
     private float currentMana = 50.0F;
     private float maxMana = 100.0F;
-    private int chakraLevel = 1;
+    private float spiritDevelopment = 0.0F;
 
     private final EnumMap<Form, Float> formMastery = new EnumMap<>(Form.class);
     private final EnumMap<SpellElement, Float> elementMastery = new EnumMap<>(SpellElement.class);
@@ -29,7 +29,8 @@ public class ActiveSpiritData implements IActiveSpirit {
 
     @Override public float getMana() { return this.currentMana; }
     @Override public float getMaxMana() { return this.maxMana; }
-    @Override public int getChakraLevel() { return this.chakraLevel; }
+    @Override public float getSpiritDevelopment() { return this.spiritDevelopment; }
+    @Override public int getChakraLevel() { return SpellProgression.stageOf(this.spiritDevelopment); }
 
     @Override
     public void setMana(float mana) {
@@ -48,8 +49,13 @@ public class ActiveSpiritData implements IActiveSpirit {
     }
 
     @Override
+    public void setSpiritDevelopment(float development) {
+        this.spiritDevelopment = SpellProgression.clampDevelopment(development);
+    }
+
+    @Override
     public void setChakraLevel(int level) {
-        this.chakraLevel = Math.max(SpellProgression.MIN_CHAKRA, Math.min(SpellProgression.MAX_CHAKRA, level));
+        this.spiritDevelopment = SpellProgression.stageStart(level);
     }
 
     @Override
@@ -64,7 +70,7 @@ public class ActiveSpiritData implements IActiveSpirit {
     @Override
     public void regenerate() {
         if (this.currentMana < this.maxMana) {
-            this.currentMana += 0.05F * this.chakraLevel;
+            this.currentMana += 0.05F * getChakraLevel();
             if (this.currentMana > this.maxMana) {
                 this.currentMana = this.maxMana;
             }
@@ -73,11 +79,8 @@ public class ActiveSpiritData implements IActiveSpirit {
 
     @Override
     public void upgradeChakras() {
-        if (this.chakraLevel >= SpellProgression.MAX_CHAKRA) {
-            return;
-        }
-        this.chakraLevel++;
-        this.maxMana += SpellProgression.CHAKRA_MANA_STEP;
+        this.spiritDevelopment = SpellProgression.clampDevelopment(
+                this.spiritDevelopment + SpellProgression.STAGE_WIDTH);
     }
 
     @Override

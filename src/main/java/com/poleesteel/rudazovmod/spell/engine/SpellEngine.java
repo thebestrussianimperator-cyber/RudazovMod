@@ -3,6 +3,7 @@ package com.poleesteel.rudazovmod.spell.engine;
 import com.poleesteel.rudazovmod.RudazovMod;
 import com.poleesteel.rudazovmod.capabilities.ActiveSpiritProvider;
 import com.poleesteel.rudazovmod.capabilities.IActiveSpirit;
+import com.poleesteel.rudazovmod.network.PacketSyncMana;
 import com.poleesteel.rudazovmod.network.PacketSyncSpirit;
 import com.poleesteel.rudazovmod.spell.api.CastContext;
 import com.poleesteel.rudazovmod.spell.api.CastMode;
@@ -252,12 +253,15 @@ public final class SpellEngine {
         float gain = SpellProgression.masteryGain(spell, ticksHeld);
         spirit.setFormMastery(spell.form(), spirit.getFormMastery(spell.form()) + gain);
         spirit.setElementMastery(spell.element(), spirit.getElementMastery(spell.element()) + gain);
+        spirit.setSpiritDevelopment(
+                spirit.getSpiritDevelopment() + SpellProgression.developmentGain(spell, ticksHeld));
         float manaGain = SpellProgression.maxManaGain(
                 spell, ticksHeld, spirit.getMaxMana(), spirit.getChakraLevel());
         if (manaGain > 0.0F) {
             spirit.setMaxMana(spirit.getMaxMana() + manaGain);
         }
         PacketSyncSpirit.sendTo(caster);
+        PacketSyncMana.sendTo(caster);
     }
 
     private static boolean canAfford(EntityPlayer caster, float cost) {

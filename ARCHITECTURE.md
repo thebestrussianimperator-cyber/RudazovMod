@@ -25,12 +25,12 @@
 ### Рендереры
 * `RenderBloodChain` — клиентский процедурный OpenGL-рендерер для `EntityBloodChain`.
 * `RenderSpellProjectile` — биллборд без текстуры, цвет из `SpellElement`.
-* `ManaHudOverlay` — полоска маны справа от центра, над голодом. Скрыта в креативе.
+* `ManaHudOverlay` — полоска маны справа от центра, над голодом; справа ступень чакр, под полоской прогресс до следующей. Скрыта в креативе.
 * `SpellSlotHud` — четыре слота Z/X/C/V слева внизу.
 * `GuiGrimoire` — сборка из осей и привязка к слотам (клавиша G).
 
 ### Capabilities игрока
-* `IActiveSpirit` / `ActiveSpiritData` — мана, максимум маны, уровень чакр, мастерство форм и стихий, множество изученных заклинаний, 4 слота хотбара.
+* `IActiveSpirit` / `ActiveSpiritData` — мана, максимум маны, непрерывное развитие духа (`spiritDevelopment`), ступень чакр (из порогов), мастерство форм и стихий, множество изученных заклинаний, 4 слота хотбара.
 * Ключ: `rudazovmod:active_spirit`. Регистрация в `RegistryHandler.registerCapabilities()`, аттач в `MagicEventsHandler`.
 
 ## 3. Реализованная логика предметов и сущностей
@@ -59,18 +59,19 @@
 ### 4.1. Игрок и ресурс
 
 Capability `IActiveSpirit`:
-* Стартовые значения: 50 / 100 маны, уровень чакр 1, мастерство осей 0.
-* Реген: `+0.05F * chakraLevel` за тик на сервере (`TickEvent.PlayerTickEvent`, фаза END).
-* Синхронизация маны на клиент: `PacketSyncMana` раз в 5 тиков (мана / max / чакры). Гримуар / unlock / bind / мастерство: `PacketSyncSpirit` на логин, респавн, смену измерения, после `unlock`/`bind`/`craft` и после практики каста. Каст по-прежнему шлёт только номер слота.
-* Смерть / клон игрока: `PlayerEvent.Clone` копирует spirit через `IStorage.writeNBT/readNBT` (мана, чакры, мастерство, unlock, bind, гримуар).
-* Прокачка чакр: `upgradeChakras()` поднимает уровень (до 7) и `maxMana += 50`. Из геймплея пока только `/rudazovmod chakra up`. Чакры **не** растут от каждого каста.
-* Практика (сервер, после успешного списания маны): мастерство формы и стихии +0.1…0.5 (CHANNEL масштабируется длительностью), `maxMana` +0.01…0.05 с мягким потолком `100 + 50*(chakra-1) + 80`.
+* Стартовые значения: 50 / 100 маны, `spiritDevelopment` 0 (ступень 1), мастерство осей 0.
+* Ступень чакр не хранится отдельно: `getChakraLevel()` = порог по развитию (шаг 20: 0–19.99 → 1, 20–39.99 → 2, …, 80+ → 5 и дальше, потолок ступени 7).
+* Реген: `+0.05F * ступень` за тик на сервере (`TickEvent.PlayerTickEvent`, фаза END).
+* Синхронизация маны на клиент: `PacketSyncMana` раз в 5 тиков (мана / max / `spiritDevelopment`). Гримуар / unlock / bind / мастерство / развитие: `PacketSyncSpirit` на логин, респавн, смену измерения, после `unlock`/`bind`/`craft` и после практики каста. Каст по-прежнему шлёт только номер слота.
+* Смерть / клон игрока: `PlayerEvent.Clone` копирует spirit через `IStorage.writeNBT/readNBT` (мана, развитие, мастерство, unlock, bind, гримуар). Старый NBT с одним `ChakraLevel` читается как порог ступени.
+* Практика (сервер, после успешного списания маны): мастерство формы и стихии +0.1…0.5, `spiritDevelopment` ~0.12–0.35 за INSTANT (CHANNEL от длительности), `maxMana` +0.01…0.05 с мягким потолком `100 + 50*(ступень-1) + 80`.
+* `upgradeChakras()` — отладка: `+20` к развитию (одна ступень). Из игры: `/rudazovmod chakra up`. Основной рост — только касты.
 
 ### 4.2. Каст
 
 1. Клавиши Z/X/C/V: START (`PacketCastSpell`) на нажатие слота, STOP (`PacketStopCast`) на отпускание. Один слот за раз. G открывает `GuiGrimoire`.
 2. Сервер читает bind, ищет определение в гримуаре затем в `SpellRegistry`, проверяет `ownsSpell`, кастует через `SpellEngine`.
-3. Команды: `/rudazovmod unlock <all|spell_id>`, `/rudazovmod bind <1-4> <spell_id>`, `/rudazovmod craft <mode> <target> <form> <element> <power>`, `/rudazovmod list`, `/rudazovmod mana` (полная мана, для теста), `/rudazovmod chakra` (статы), `/rudazovmod chakra up` (тест прокачки чакр). Id без `:` → namespace `rudazovmod`. `craft` пишет в гримуар id `rudazovmod:custom/<uuid>`, не в статический реестр. `craft` отвергает оси, которые ещё закрыты чакрами.
+3. Команды: `/rudazovmod unlock <all|spell_id>`, `/rudazovmod bind <1-4> <spell_id>`, `/rudazovmod craft <mode> <target> <form> <element> <power>`, `/rudazovmod list`, `/rudazovmod mana` (полная мана, для теста), `/rudazovmod chakra` (ступень и развитие), `/rudazovmod chakra up` (отладка, +20 к развитию). Id без `:` → namespace `rudazovmod`. `craft` пишет в гримуар id `rudazovmod:custom/<uuid>`, не в статический реестр. `craft` отвергает оси, которые ещё закрыты ступенью.
 4. Тестовые записи: `test_ray`, `test_ice`, `test_beam`, `test_hold`, `test_hold_item`, `test_hold_block`, `test_heal` (LIFE RAY ENTITY), `test_drain` (LIFE HOLD ENTITY), `test_self` (LIFE SELF INSTANT), `test_self_ward` (FIRE SELF CHANNEL).
 
 ### 4.3. Формы и стихия
@@ -93,7 +94,6 @@ Capability `IActiveSpirit`:
 ### 4.5. Ещё нет
 
 * Кулдаун заклинаний (есть только у предмета цепи).
-* Условия роста `chakraLevel` кроме команды `/rudazovmod chakra up`.
 * Форма `AOE`.
 
 ## 5. Особенности архитектуры (общее)
@@ -110,7 +110,7 @@ Capability `IActiveSpirit`:
 ### Пакеты
 
 * `spell.api` — `CastMode` (INSTANT, CHANNEL), `TargetType` (NONE, ENTITY, ITEM, BLOCK), `Form` (RAY, HOLD), `SpellDefinition` (record: id, оси, power; `cost()` из осей; `writeNBT`/`readNBT`), `SpellCost`, `SpellCombination`, `SpellProgression` (чакры, мастерство, практика), `SpellTarget` (закрытый набор nested-record’ов Entity/Item/Block/None; `sealed` Jabel 1.0.1 не умеет), `CastContext`, `TargetResolver`, `FormHandler`.
-* `spell.engine` — `SpellEngine` (`startCast` / `tick` / `endCast` / `canCast`: матрица + чакры + мана; практика после успешного каста), `SpellRegistry` (`registerDefaults()` — пресеты), `ActiveCastTracker` (один CHANNEL на игрока).
+* `spell.engine` — `SpellEngine` (`startCast` / `tick` / `endCast` / `canCast`: матрица + ступень чакр + мана; практика после успешного каста: мастерство, развитие, maxMana), `SpellRegistry` (`registerDefaults()` — пресеты), `ActiveCastTracker` (один CHANNEL на игрока).
 * `spell.resolve` — `None` / `Entity` / `Item` / `Block` резолверы. ITEM — только `EntityItem`. ENTITY — не дроп. BLOCK — `RayTraceResult` (BlockHitResult в 1.12.2 нет).
 * `spell.form` — `RayFormHandler`, `HoldFormHandler` (`HOLD`+ENTITY/ITEM/BLOCK), `SelfFormHandler` (`SELF`+NONE).
 
@@ -127,7 +127,7 @@ Capability `IActiveSpirit`:
           → FormHandler.onStart / onTick / onEnd
 ```
 
-`SpellEngine` проверяет `SpellCombination.canCast`, затем `SpellProgression` (чакры / опционально мастерство), списывает ману с учётом скидки мастерства и держит CHANNEL в `ActiveCastTracker` (снимок `SpellDefinition`, не id из реестра). Поиск определения: гримуар игрока, иначе `SpellRegistry`. База стоимости — `SpellDefinition.cost()` ← `SpellCost`; каст считает `SpellCost.of(spell, formMastery, elementMastery)`. Если чакр не хватает, каста нет и мана не списывается.
+`SpellEngine` проверяет `SpellCombination.canCast`, затем `SpellProgression` (ступень из `spiritDevelopment` / опционально мастерство), списывает ману с учётом скидки мастерства и держит CHANNEL в `ActiveCastTracker` (снимок `SpellDefinition`, не id из реестра). Поиск определения: гримуар игрока, иначе `SpellRegistry`. База стоимости — `SpellDefinition.cost()` ← `SpellCost`; каст считает `SpellCost.of(spell, formMastery, elementMastery)`. Если ступени не хватает, каста нет и мана не списывается.
 
 ### 6.2. Оси определения
 
@@ -196,11 +196,10 @@ Capability `IActiveSpirit`:
 
 ### 6.7. Состояние игрока (расширение capability)
 
-Есть: мана, maxMana, chakraLevel, мастерство форм (`RAY`/`HOLD`/`SELF`) и стихий (`FIRE`/`ICE`/`EARTH`/`LIFE`) 0…100, unlocked, bound[4], гримуар (список `SpellDefinition`). Клиент получает книгу и мастерство через `PacketSyncSpirit`.
+Есть: мана, maxMana, `spiritDevelopment`, ступень чакр (вычисляется), мастерство форм (`RAY`/`HOLD`/`SELF`) и стихий (`FIRE`/`ICE`/`EARTH`/`LIFE`) 0…100, unlocked, bound[4], гримуар (список `SpellDefinition`). Клиент получает книгу, мастерство и развитие через `PacketSyncSpirit`; мана и развитие ещё через `PacketSyncMana`.
 
 Добавить позже:
 * кулдаун по spellId
-* условия повышения `chakraLevel` (сейчас только `upgradeChakras()` / команда)
 
 Идентификаторы в NBT всегда полные `rudazovmod:id`. Парсер: если нет `:`, подставлять namespace мода.
 
@@ -210,8 +209,8 @@ Capability `IActiveSpirit`:
 |---|---|---|
 | `PacketCastSpell` | C→S | INSTANT: slotIndex. Либо START channel |
 | `PacketStopCast` | C→S | отпускание CHANNEL |
-| `PacketSyncMana` | S→C | мана / max / чакры, каждые 5 тиков |
-| `PacketSyncSpirit` | S→C | unlock + binds + гримуар + мастерство осей (id пакета 3). Не каждый тик. |
+| `PacketSyncMana` | S→C | мана / max / `spiritDevelopment`, каждые 5 тиков. Ступень клиент считает сам. |
+| `PacketSyncSpirit` | S→C | unlock + binds + гримуар + мастерство осей + развитие (id пакета 3). Не каждый тик. |
 | `PacketCraftSpell` | C→S | оси + power + слот (−1 = без bind). Id выдаёт сервер. |
 | `PacketBindSpell` | C→S | slot + id уже существующего определения. Сервер проверяет `ownsSpell`. |
 
@@ -224,7 +223,7 @@ Capability `IActiveSpirit`:
 * Не воскрешать удалённый прототип (`AbstractSpell`, `TelekinesisLogic`, `CustomSpell`).
 * Не плодить Entity на каждую стихию.
 * Не вешать логику каста на клиентский тик кроме START/STOP/фронта нажатия.
-* Не вешать рост мастерства и maxMana на клиент — только сервер после списания маны.
+* Не вешать рост мастерства, maxMana и `spiritDevelopment` на клиент — только сервер после списания маны.
 * Не редактировать `build.gradle`.
 * Не читать `README.md` MDK как документацию мода.
 * Не тащить чужие магические API.
@@ -267,16 +266,17 @@ Capability `IActiveSpirit`:
 
 ### 7.3. Прогрессия
 
-Открываются **оси**, не готовые спеллы: стихия, форма, режим, тип цели, потолок `power`. Таблица в `SpellProgression` (цифры временные):
+Открываются **оси**, не готовые спеллы: стихия, форма, режим, тип цели, потолок `power`. Ступень считается из `spiritDevelopment` (непрерывный рост от кастов). Таблица в `SpellProgression` (цифры временные):
 
-| Чакры | Что открыто |
-|---|---|
-| 1 | `RAY` + `FIRE`/`ICE`, `INSTANT`, power ≤ 2 |
-| 2 | `CHANNEL`, `HOLD`, цели `ITEM`/`BLOCK`, power ≤ 3.5 |
-| 3 | `SELF`, `EARTH`, `LIFE`, power ≤ 6 |
-| 4+ | потолок power 10 |
+| Ступень | Развитие | Что открыто |
+|---|---|---|
+| 1 | 0–19.99 | `RAY` + `FIRE`/`ICE`, `INSTANT`, power ≤ 2 |
+| 2 | 20–39.99 | `CHANNEL`, `HOLD`, цели `ITEM`/`BLOCK`, power ≤ 3.5 |
+| 3 | 40–59.99 | `SELF`, `EARTH`, `LIFE`, power ≤ 6 |
+| 4 | 60–79.99 | потолок power 10 |
+| 5+ | 80+ | дальше по шагу 20, ступень не выше 7 |
 
-`SpellEngine` и `SpellBook.craft` отвергают закрытое. Конструктор (`GuiGrimoire`) показывает только оси текущего уровня чакр. Команда `unlock` по-прежнему открывает пресеты в книге, но каст закрытой комбинации не проходит. Мастерство снижает стоимость, порог мастерства для каста пока 0.
+`SpellEngine` и `SpellBook.craft` смотрят на ступень, не на сырое число. Конструктор показывает оси текущей ступени и прогресс в шапке. Команда `unlock` по-прежнему открывает пресеты в книге, но каст закрытой комбинации не проходит. Мастерство снижает стоимость, порог мастерства для каста пока 0. Предметов и ритуалов для повышения чакр нет.
 
 ### 7.4. Порядок работ (GUI в конце)
 
@@ -285,9 +285,9 @@ Capability `IActiveSpirit`:
 3. Матрица `HOLD`+ITEM и `HOLD`+BLOCK — **сделано** (`SpellCombination.isImplemented`, пресеты `test_hold_item` / `test_hold_block`).
 4. Синк гримуара на клиент — **сделано** (`PacketSyncSpirit`).
 5. GUI сборки и слотов — **сделано** (`GuiGrimoire`, `SpellSlotHud`, `PacketCraftSpell` / `PacketBindSpell`). План §7 закрыт.
-6. Прогрессия осей (чакры, мастерство, рост maxMana от практики) — **сделано** (`SpellProgression`, поля `IActiveSpirit`, проверки в `SpellEngine`). Рост чакр из геймплея — позже.
+6. Прогрессия осей — **сделано**: непрерывное `spiritDevelopment` от кастов, ступени по порогам 20, мастерство и рост maxMana. `upgradeChakras()` только отладка.
 
-Конструктор предлагает `SpellCombination.canCast` и оси, открытые текущими чакрами. Каст по-прежнему шлёт только номер слота.
+Конструктор предлагает `SpellCombination.canCast` и оси, открытые текущей ступенью. Каст по-прежнему шлёт только номер слота.
 
 ## 8. Что не делать
 

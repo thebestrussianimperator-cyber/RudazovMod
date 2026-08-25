@@ -19,6 +19,11 @@ gui.rudazovmod.grimoire.power=Power
 gui.rudazovmod.grimoire.cost=Cost
 gui.rudazovmod.grimoire.cost_once=(once)
 gui.rudazovmod.grimoire.cost_tick=(per tick)
+gui.rudazovmod.grimoire.stage=Stage %s
+gui.rudazovmod.grimoire.stage_next=Stage %s (%s / %s)
+gui.rudazovmod.grimoire.need_stage=stage %s
+gui.rudazovmod.hud.stage=st. %s
+gui.rudazovmod.hud.stage_next=st. %s (%s/%s)
 gui.rudazovmod.slot=Slot %s
 
 spell.rudazovmod.form.ray=Ray

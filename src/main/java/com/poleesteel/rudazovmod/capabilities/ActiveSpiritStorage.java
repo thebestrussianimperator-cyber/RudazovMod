@@ -22,7 +22,7 @@ public class ActiveSpiritStorage implements IStorage<IActiveSpirit> {
         NBTTagCompound tag = new NBTTagCompound();
         tag.setFloat("CurrentMana", instance.getMana());
         tag.setFloat("MaxMana", instance.getMaxMana());
-        tag.setInteger("ChakraLevel", instance.getChakraLevel());
+        writeDevelopment(instance, tag);
         writeMastery(instance, tag);
         writeBook(instance, tag);
         return tag;
@@ -34,19 +34,18 @@ public class ActiveSpiritStorage implements IStorage<IActiveSpirit> {
             NBTTagCompound tag = (NBTTagCompound) nbt;
             instance.setMaxMana(tag.getFloat("MaxMana"));
             instance.setMana(tag.getFloat("CurrentMana"));
-            if (tag.hasKey("ChakraLevel", Constants.NBT.TAG_ANY_NUMERIC)) {
-                instance.setChakraLevel(tag.getInteger("ChakraLevel"));
-            }
+            readDevelopment(instance, tag);
             readMastery(instance, tag);
             readBook(instance, tag);
         }
     }
 
-    /** Unlock / bind / гримуар / мастерство — без маны. Для PacketSyncSpirit. */
+    /** Unlock / bind / гримуар / мастерство / развитие — без маны. Для PacketSyncSpirit. */
     public static NBTTagCompound writeBookNBT(IActiveSpirit instance) {
         NBTTagCompound tag = new NBTTagCompound();
         writeBook(instance, tag);
         writeMastery(instance, tag);
+        writeDevelopment(instance, tag);
         return tag;
     }
 
@@ -57,6 +56,7 @@ public class ActiveSpiritStorage implements IStorage<IActiveSpirit> {
         if (tag != null) {
             readBook(instance, tag);
             readMastery(instance, tag);
+            readDevelopment(instance, tag);
         }
     }
 
@@ -107,6 +107,19 @@ public class ActiveSpiritStorage implements IStorage<IActiveSpirit> {
                     instance.putSpell(spell.get());
                 }
             }
+        }
+    }
+
+    private static void writeDevelopment(IActiveSpirit instance, NBTTagCompound tag) {
+        tag.setFloat("SpiritDevelopment", instance.getSpiritDevelopment());
+        tag.setInteger("ChakraLevel", instance.getChakraLevel());
+    }
+
+    private static void readDevelopment(IActiveSpirit instance, NBTTagCompound tag) {
+        if (tag.hasKey("SpiritDevelopment", Constants.NBT.TAG_ANY_NUMERIC)) {
+            instance.setSpiritDevelopment(tag.getFloat("SpiritDevelopment"));
+        } else if (tag.hasKey("ChakraLevel", Constants.NBT.TAG_ANY_NUMERIC)) {
+            instance.setChakraLevel(tag.getInteger("ChakraLevel"));
         }
     }
 

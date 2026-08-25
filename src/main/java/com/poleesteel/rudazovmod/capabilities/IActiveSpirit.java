@@ -12,14 +12,19 @@ import java.util.Set;
 public interface IActiveSpirit {
     float getMana();
     float getMaxMana();
+    float getSpiritDevelopment();
+    /** Ступень чакр из развития духа. */
     int getChakraLevel();
 
     void setMana(float mana);
     void setMaxMana(float maxMana);
+    void setSpiritDevelopment(float development);
+    /** Отладка / старый NBT: выставляет развитие на порог ступени. */
     void setChakraLevel(int level);
 
     boolean consumeMana(float amount);
     void regenerate();
+    /** Отладка: +одна ступень к развитию. */
     void upgradeChakras();
 
     float getFormMastery(Form form);
