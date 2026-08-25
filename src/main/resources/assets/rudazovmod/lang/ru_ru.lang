@@ -39,3 +39,7 @@ spell.rudazovmod.element.fire=Огонь
 spell.rudazovmod.element.ice=Лёд
 spell.rudazovmod.element.earth=Земля
 spell.rudazovmod.element.life=Жизнь
+spell.rudazovmod.shape.orb=Шар
+spell.rudazovmod.shape.arrow=Стрела
+spell.rudazovmod.shape.spear=Копьё
+spell.rudazovmod.shape.hammer=Молот

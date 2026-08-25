@@ -50,7 +50,7 @@ public final class RayFormHandler implements FormHandler {
             return;
         }
         EntitySpellProjectile projectile = new EntitySpellProjectile(
-                context.world(), context.caster(), context.spell().element(), context.spell().power());
+                context.world(), context.caster(), context.spell());
         context.world().spawnEntity(projectile);
     }
 

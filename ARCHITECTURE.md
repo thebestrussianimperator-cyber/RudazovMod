@@ -20,11 +20,11 @@
 
 ### Сущности
 * `EntityBloodChain` (ID: `blood_chain_entity`, Network ID: 1, tracker: range 64, update 1, sendVelocity true). Невидимая физическая сущность, отвечающая за логику контроля моба и точки привязки рендера.
-* `EntitySpellProjectile` (ID: `spell_projectile`, Network ID: 2, tracker: range 64, update 1, sendVelocity true). Универсальный магический снаряд. Несёт стихию (`DataParameter` ordinal) и мощность (`power`, только сервер).
+* `EntitySpellProjectile` (ID: `spell_projectile`, Network ID: 2, tracker: range 64, update 1, sendVelocity true). Универсальный магический снаряд. Несёт стихию, `ProjectileShape` и `power` (`DataParameter`). Один класс на все виды: шар, стрела, копьё, молот.
 
 ### Рендереры
 * `RenderBloodChain` — клиентский процедурный OpenGL-рендерер для `EntityBloodChain`.
-* `RenderSpellProjectile` — биллборд без текстуры, цвет из `SpellElement`.
+* `RenderSpellProjectile` — процедурный рендер без текстуры, цвет из `SpellElement`, геометрия из `ProjectileShape` (шар / игла / копьё / куб-молот).
 * `ManaHudOverlay` — полоска маны справа от центра, над голодом; справа ступень чакр, под полоской прогресс до следующей. Скрыта в креативе.
 * `SpellSlotHud` — четыре слота Z/X/C/V слева внизу.
 * `GuiGrimoire` — сборка из осей и привязка к слотам (клавиша G).
@@ -71,8 +71,8 @@ Capability `IActiveSpirit`:
 
 1. Клавиши Z/X/C/V: START (`PacketCastSpell`) на нажатие слота, STOP (`PacketStopCast`) на отпускание. Один слот за раз. G открывает `GuiGrimoire`.
 2. Сервер читает bind, ищет определение в гримуаре затем в `SpellRegistry`, проверяет `ownsSpell`, кастует через `SpellEngine`.
-3. Команды: `/rudazovmod unlock <all|spell_id>`, `/rudazovmod bind <1-4> <spell_id>`, `/rudazovmod craft <mode> <target> <form> <element> <power>`, `/rudazovmod list`, `/rudazovmod mana` (полная мана, для теста), `/rudazovmod chakra` (ступень и развитие), `/rudazovmod chakra up` (отладка, +20 к развитию). Id без `:` → namespace `rudazovmod`. `craft` пишет в гримуар id `rudazovmod:custom/<uuid>`, не в статический реестр. `craft` отвергает оси, которые ещё закрыты ступенью.
-4. Тестовые записи: `test_ray`, `test_ice`, `test_beam`, `test_hold`, `test_hold_item`, `test_hold_block`, `test_heal` (LIFE RAY ENTITY), `test_drain` (LIFE HOLD ENTITY), `test_self` (LIFE SELF INSTANT), `test_self_ward` (FIRE SELF CHANNEL).
+3. Команды: `/rudazovmod unlock <all|spell_id>`, `/rudazovmod bind <1-4> <spell_id>`, `/rudazovmod craft <mode> <target> <form> <element> <power> [shape]`, `/rudazovmod list`, `/rudazovmod mana` (полная мана, для теста), `/rudazovmod chakra` (ступень и развитие), `/rudazovmod chakra up` (отладка, +20 к развитию). Id без `:` → namespace `rudazovmod`. `craft` пишет в гримуар id `rudazovmod:custom/<uuid>`, не в статический реестр. `craft` отвергает оси, которые ещё закрыты ступенью. `shape` опционален (`ORB` по умолчанию) и учитывается только для `RAY`+`INSTANT`+`NONE`.
+4. Тестовые записи: `test_ray` (ORB), `test_arrow`, `test_spear`, `test_hammer`, `test_ice`, `test_beam`, `test_hold`, `test_hold_item`, `test_hold_block`, `test_heal` (LIFE RAY ENTITY), `test_drain` (LIFE HOLD ENTITY), `test_self` (LIFE SELF INSTANT), `test_self_ward` (FIRE SELF CHANNEL).
 
 ### 4.3. Формы и стихия
 
@@ -81,7 +81,7 @@ Capability `IActiveSpirit`:
   * ICE — замедление, заморозка воды/лавы, вязкая тяга HOLD, медленный снаряд.
   * EARTH — тяжёлый удар и отброс, сильная тяга, швырок при отпускании HOLD, снаряд с гравитацией; INSTANT ломает мягкий блок.
   * LIFE — `onHit` лечит живых и бьёт нежить. `HOLD`+ENTITY высасывает HP в кастера. `SELF` лечит кастера. `RAY` по блоку — рост (`IGrowable`).
-* `RAY` INSTANT + NONE — `EntitySpellProjectile` (скорость/гравитация/след стихии). CHANNEL + NONE — луч (частицы стихии, `onHit` и `onWorldHit` раз в 5 тиков).
+* `RAY` INSTANT + NONE — `EntitySpellProjectile`. Вид задаёт `ProjectileShape` (баллистика, размер, удар); стихия окрашивает след, частицы и `onHit`/`onWorldHit`. CHANNEL + NONE — луч (частицы стихии, `onHit` и `onWorldHit` раз в 5 тиков). Форма снаряда на канал не влияет.
 * `SELF` + NONE — эффект на кастера: LIFE хил, FIRE огнестойкость, ICE сопротивление, EARTH поглощение.
 * `HOLD` + ENTITY — тянет цель; стихия жжёт / морозит / швыряет / высасывает (`LIFE`).
 * `HOLD` + ITEM — то же для `EntityItem`; FIRE за ~1с плавит по рецепту печи.
@@ -109,7 +109,7 @@ Capability `IActiveSpirit`:
 
 ### Пакеты
 
-* `spell.api` — `CastMode` (INSTANT, CHANNEL), `TargetType` (NONE, ENTITY, ITEM, BLOCK), `Form` (RAY, HOLD), `SpellDefinition` (record: id, оси, power; `cost()` из осей; `writeNBT`/`readNBT`), `SpellCost`, `SpellCombination`, `SpellProgression` (чакры, мастерство, практика), `SpellTarget` (закрытый набор nested-record’ов Entity/Item/Block/None; `sealed` Jabel 1.0.1 не умеет), `CastContext`, `TargetResolver`, `FormHandler`.
+* `spell.api` — `CastMode` (INSTANT, CHANNEL), `TargetType` (NONE, ENTITY, ITEM, BLOCK), `Form` (RAY, HOLD, SELF), `ProjectileShape` (ORB, ARROW, SPEAR, HAMMER — только снаряд), `SpellDefinition` (record: id, оси, power, projectileShape; `cost()` из осей; `writeNBT`/`readNBT`), `SpellCost`, `SpellCombination`, `SpellProgression` (чакры, мастерство, практика), `SpellTarget` (закрытый набор nested-record’ов Entity/Item/Block/None; `sealed` Jabel 1.0.1 не умеет), `CastContext`, `TargetResolver`, `FormHandler`.
 * `spell.engine` — `SpellEngine` (`startCast` / `tick` / `endCast` / `canCast`: матрица + ступень чакр + мана; практика после успешного каста: мастерство, развитие, maxMana), `SpellRegistry` (`registerDefaults()` — пресеты), `ActiveCastTracker` (один CHANNEL на игрока).
 * `spell.resolve` — `None` / `Entity` / `Item` / `Block` резолверы. ITEM — только `EntityItem`. ENTITY — не дроп. BLOCK — `RayTraceResult` (BlockHitResult в 1.12.2 нет).
 * `spell.form` — `RayFormHandler`, `HoldFormHandler` (`HOLD`+ENTITY/ITEM/BLOCK), `SelfFormHandler` (`SELF`+NONE).
@@ -138,8 +138,9 @@ Capability `IActiveSpirit`:
 | `targetType` | `NONE`, `ENTITY`, `ITEM`, `BLOCK` |
 | `form` | `RAY`, `HOLD`, `SELF` |
 | `element` | `FIRE`, `ICE`, `EARTH`, `LIFE` |
+| `projectileShape` | `ORB`, `ARROW`, `SPEAR`, `HAMMER`. Живёт только у `RAY`+`INSTANT`+`NONE` (снаряд). Иначе в определении всегда `ORB`. Старые NBT без ключа читаются как `ORB`. |
 | `power` | float на `SpellDefinition` |
-| `cost()` | не поле: `SpellCost` = `modeBase * formMult * element.manaMultiplier * power * (1 - masteryBonus)`. INSTANT base 8, CHANNEL 0.4/тик; RAY 1.0, HOLD 1.25, SELF 0.9. `masteryBonus` — среднее мастерства формы и стихии / 100 × 0.40 (макс. скидка 40%, не ниже 50% базы). В NBT не пишется, всегда пересчёт. |
+| `cost()` | не поле: `SpellCost` = `modeBase * formMult * element.manaMultiplier * shape.manaMultiplier * power * (1 - masteryBonus)`. INSTANT base 8, CHANNEL 0.4/тик; RAY 1.0, HOLD 1.25, SELF 0.9. Shape: ORB 1.00, ARROW 1.08, SPEAR 1.12, HAMMER 1.22. `masteryBonus` — среднее мастерства формы и стихии / 100 × 0.40 (макс. скидка 40%, не ниже 50% базы). В NBT не пишется, всегда пересчёт. |
 
 `SELF`/`AREA` нет. Scripted-спеллы не делать.
 
@@ -188,7 +189,12 @@ Capability `IActiveSpirit`:
 
 ### 6.6. Формы
 
-* `RAY` — снаряд (INSTANT + NONE) или луч по взгляду (CHANNEL). Стихия: след, баллистика, удар по мобу и блоку.
+* `RAY` — снаряд (INSTANT + NONE) или луч по взгляду (CHANNEL). Снаряд один (`EntitySpellProjectile`), вид — `ProjectileShape`:
+  * `ORB` — средняя скорость, обычная гравитация, средний размер, небольшой взрыв/область при ударе.
+  * `ARROW` — высокая скорость, почти без гравитации, тонкий, точный урон, слабый отброс, дальняя дистанция.
+  * `SPEAR` — высокая скорость, слабая гравитация, удлинённый, пробивает несколько целей.
+  * `HAMMER` — низкая скорость, сильная гравитация, крупный, короткий полёт, сильный отброс (и небольшой удар по окружению). Ступень 2.
+  `power` масштабирует урон, размер и силу эффектов. Стихия по-прежнему: след, цвет, `onHit` / `onWorldHit` (горение, замедление, отброс земли, лечение/урон нежити). CHANNEL-луч форму снаряда не читает.
 * `HOLD` — удержание `ENTITY`/`ITEM` перед кастером; `BLOCK` вынимается из мира и ставится по отпусканию. Стихия: множитель тяги, `onHoldTick` / `onHoldRelease`.
 * `SELF` — только `NONE`. INSTANT вспышка / CHANNEL импульс раз в 10 тиков. Стихия: `onSelf` (LIFE лечит, FIRE огнестойкость, ICE сопротивление, EARTH поглощение).
 
@@ -211,7 +217,7 @@ Capability `IActiveSpirit`:
 | `PacketStopCast` | C→S | отпускание CHANNEL |
 | `PacketSyncMana` | S→C | мана / max / `spiritDevelopment`, каждые 5 тиков. Ступень клиент считает сам. |
 | `PacketSyncSpirit` | S→C | unlock + binds + гримуар + мастерство осей + развитие (id пакета 3). Не каждый тик. |
-| `PacketCraftSpell` | C→S | оси + power + слот (−1 = без bind). Id выдаёт сервер. |
+| `PacketCraftSpell` | C→S | оси + `ProjectileShape` + power + слот (−1 = без bind). Id выдаёт сервер. |
 | `PacketBindSpell` | C→S | slot + id уже существующего определения. Сервер проверяет `ownsSpell`. |
 
 Клиент не сообщает цель. Сервер резолвит её по `TargetType` спелла из слота.
@@ -221,7 +227,7 @@ Capability `IActiveSpirit`:
 * Не писать уникальные заклинания. Скелет (resolver + engine + form stubs) уже стоит.
 * Не склеивать entity/item/block в один спелл и не плодить три scripted-телекинеза.
 * Не воскрешать удалённый прототип (`AbstractSpell`, `TelekinesisLogic`, `CustomSpell`).
-* Не плодить Entity на каждую стихию.
+* Не плодить Entity на каждую стихию и не плодить Entity на каждый `ProjectileShape`.
 * Не вешать логику каста на клиентский тик кроме START/STOP/фронта нажатия.
 * Не вешать рост мастерства, maxMana и `spiritDevelopment` на клиент — только сервер после списания маны.
 * Не редактировать `build.gradle`.
@@ -240,7 +246,7 @@ Capability `IActiveSpirit`:
 * Собранные игроком — NBT в capability (гримуар): список `SpellDefinition`.
 * Id кастома: `rudazovmod:custom/<uuid>` или индекс в гримуаре. Каст: достать определение → `SpellEngine.startCast(player, definition)` без обязательной записи в статический реестр.
 
-`SpellDefinition` сериализуется через `writeNBT` / `readNBT` (id, оси, power). Id без `:` → namespace мода. Стоимость **считать** из осей (`SpellCost`), не хардкодить и не доверять NBT. Незаконная комбинация не создаётся (компактный конструктор), мусор отвергается `SpellEngine` / `SpellRegistry.register` / `craft`.
+`SpellDefinition` сериализуется через `writeNBT` / `readNBT` (id, оси, power, `ProjectileShape`). Id без `:` → namespace мода. Ключ `ProjectileShape` опционален: нет ключа → `ORB` (старые гримуары). Стоимость **считать** из осей (`SpellCost`), не хардкодить и не доверять NBT. Незаконная комбинация не создаётся (компактный конструктор), мусор отвергается `SpellEngine` / `SpellRegistry.register` / `craft`. Не-снарядные комбинации нормализуют shape в `ORB`.
 
 Гримуар в `IActiveSpirit` (NBT-ключ `Grimoire`). Каст: `findDefinition` → `SpellEngine.startCast(player, definition)` без записи кастома в статический реестр. `craft` создаёт `rudazovmod:custom/<uuid>`, кладёт в гримуар и unlock.
 
@@ -251,7 +257,7 @@ Capability `IActiveSpirit`:
 
 | Form | TargetType | CastMode | Смысл | Сейчас в коде |
 |---|---|---|---|---|
-| RAY | NONE | INSTANT | снаряд | да |
+| RAY | NONE | INSTANT | снаряд (`ProjectileShape`) | да |
 | RAY | NONE | CHANNEL | луч по взгляду | да |
 | RAY | ENTITY | INSTANT | хитскан в моба | частично (ветка есть) |
 | HOLD | ENTITY | CHANNEL | телекинез моба | да |
@@ -270,8 +276,8 @@ Capability `IActiveSpirit`:
 
 | Ступень | Развитие | Что открыто |
 |---|---|---|
-| 1 | 0–19.99 | `RAY` + `FIRE`/`ICE`, `INSTANT`, power ≤ 2 |
-| 2 | 20–39.99 | `CHANNEL`, `HOLD`, цели `ITEM`/`BLOCK`, power ≤ 3.5 |
+| 1 | 0–19.99 | `RAY` + `FIRE`/`ICE`, `INSTANT`, снаряды `ORB`/`ARROW`/`SPEAR`, power ≤ 2 |
+| 2 | 20–39.99 | `CHANNEL`, `HOLD`, цели `ITEM`/`BLOCK`, снаряд `HAMMER`, power ≤ 3.5 |
 | 3 | 40–59.99 | `SELF`, `EARTH`, `LIFE`, power ≤ 6 |
 | 4 | 60–79.99 | потолок power 10 |
 | 5+ | 80+ | дальше по шагу 20, ступень не выше 7 |
@@ -287,13 +293,13 @@ Capability `IActiveSpirit`:
 5. GUI сборки и слотов — **сделано** (`GuiGrimoire`, `SpellSlotHud`, `PacketCraftSpell` / `PacketBindSpell`). План §7 закрыт.
 6. Прогрессия осей — **сделано**: непрерывное `spiritDevelopment` от кастов, ступени по порогам 20, мастерство и рост maxMana. `upgradeChakras()` только отладка.
 
-Конструктор предлагает `SpellCombination.canCast` и оси, открытые текущей ступенью. Каст по-прежнему шлёт только номер слота.
+Конструктор предлагает `SpellCombination.canCast` и оси, открытые текущей ступенью. Выбор `ProjectileShape` в `GuiGrimoire` только при `RAY`+`INSTANT`+`NONE`. Клик по записи гримуара копирует оси (включая shape) в конструктор и биндит слот. Каст по-прежнему шлёт только номер слота.
 
 ## 8. Что не делать
 
 * Не писать уникальные Java-классы спеллов и не воскрешать `AbstractSpell` / `CustomSpell`.
 * Не склеивать entity/item/block в один спелл.
-* Не плодить Entity на каждую стихию.
+* Не плодить Entity на каждую стихию и не плодить Entity на каждый `ProjectileShape`.
 * Не вешать логику каста на клиентский тик кроме START/STOP.
 * Не редактировать `build.gradle`.
 * Не читать `README.md` MDK как документацию мода.

@@ -4,6 +4,7 @@ import com.poleesteel.rudazovmod.RudazovMod;
 import com.poleesteel.rudazovmod.Tags;
 import com.poleesteel.rudazovmod.spell.api.CastMode;
 import com.poleesteel.rudazovmod.spell.api.Form;
+import com.poleesteel.rudazovmod.spell.api.ProjectileShape;
 import com.poleesteel.rudazovmod.spell.api.SpellCombination;
 import com.poleesteel.rudazovmod.spell.api.SpellDefinition;
 import com.poleesteel.rudazovmod.spell.api.SpellElement;
@@ -38,6 +39,15 @@ public final class SpellRegistry {
         register(new SpellDefinition(
                 new ResourceLocation(Tags.MODID, "test_ray"),
                 CastMode.INSTANT, TargetType.NONE, Form.RAY, SpellElement.FIRE, 2.0F));
+        register(new SpellDefinition(
+                new ResourceLocation(Tags.MODID, "test_arrow"),
+                CastMode.INSTANT, TargetType.NONE, Form.RAY, SpellElement.FIRE, 2.0F, ProjectileShape.ARROW));
+        register(new SpellDefinition(
+                new ResourceLocation(Tags.MODID, "test_spear"),
+                CastMode.INSTANT, TargetType.NONE, Form.RAY, SpellElement.FIRE, 2.0F, ProjectileShape.SPEAR));
+        register(new SpellDefinition(
+                new ResourceLocation(Tags.MODID, "test_hammer"),
+                CastMode.INSTANT, TargetType.NONE, Form.RAY, SpellElement.FIRE, 2.0F, ProjectileShape.HAMMER));
         register(new SpellDefinition(
                 new ResourceLocation(Tags.MODID, "test_ice"),
                 CastMode.INSTANT, TargetType.NONE, Form.RAY, SpellElement.ICE, 2.0F));

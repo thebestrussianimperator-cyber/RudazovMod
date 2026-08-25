@@ -7,6 +7,7 @@ import com.poleesteel.rudazovmod.spell.api.CastMode;
 import com.poleesteel.rudazovmod.spell.api.Form;
 import com.poleesteel.rudazovmod.spell.api.SpellCombination;
 import com.poleesteel.rudazovmod.spell.api.SpellDefinition;
+import com.poleesteel.rudazovmod.spell.api.ProjectileShape;
 import com.poleesteel.rudazovmod.spell.api.SpellElement;
 import com.poleesteel.rudazovmod.spell.api.SpellProgression;
 import com.poleesteel.rudazovmod.spell.api.TargetType;
@@ -32,6 +33,18 @@ public final class SpellBook {
             SpellElement element,
             float power,
             int bindSlot) {
+        return craft(player, mode, target, form, element, power, ProjectileShape.ORB, bindSlot);
+    }
+
+    public static Optional<SpellDefinition> craft(
+            EntityPlayer player,
+            CastMode mode,
+            TargetType target,
+            Form form,
+            SpellElement element,
+            float power,
+            ProjectileShape shape,
+            int bindSlot) {
         if (player == null || player.world.isRemote) {
             return Optional.empty();
         }
@@ -47,6 +60,10 @@ public final class SpellBook {
         if (power > MAX_POWER) {
             power = MAX_POWER;
         }
+        ProjectileShape resolved = shape == null ? ProjectileShape.ORB : shape;
+        if (!SpellCombination.usesProjectileShape(form, target, mode)) {
+            resolved = ProjectileShape.ORB;
+        }
 
         IActiveSpirit spirit = player.getCapability(ActiveSpiritProvider.ACTIVE_SPIRIT_CAP, null);
         if (spirit == null) {
@@ -56,11 +73,11 @@ public final class SpellBook {
         if (power > cap) {
             power = cap;
         }
-        if (!SpellProgression.meetsChakra(spirit.getChakraLevel(), form, target, mode, element, power)) {
+        if (!SpellProgression.meetsChakra(spirit.getChakraLevel(), form, target, mode, element, power, resolved)) {
             return Optional.empty();
         }
 
-        SpellDefinition spell = SpellDefinition.createCustom(mode, target, form, element, power);
+        SpellDefinition spell = SpellDefinition.createCustom(mode, target, form, element, power, resolved);
         spirit.putSpell(spell);
         spirit.unlockSpell(spell.id().toString());
         if (bindSlot >= 0 && bindSlot < 4) {

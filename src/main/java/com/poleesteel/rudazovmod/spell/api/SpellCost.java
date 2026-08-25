@@ -3,7 +3,7 @@ package com.poleesteel.rudazovmod.spell.api;
 /**
  * Стоимость каста из осей. Не хранится в NBT и не хардкодится в записи.
  * INSTANT — один раз за каст, CHANNEL — каждый серверный тик.
- * {@code cost = modeBase * formMult * element.manaMultiplier * power * (1 - masteryBonus)}
+ * {@code cost = modeBase * formMult * element.manaMultiplier * shape.manaMultiplier * power * (1 - masteryBonus)}
  */
 public final class SpellCost {
 
@@ -22,7 +22,7 @@ public final class SpellCost {
     private SpellCost() {}
 
     public static float of(SpellDefinition spell) {
-        return of(spell.castMode(), spell.form(), spell.element(), spell.power());
+        return of(spell.castMode(), spell.form(), spell.element(), spell.power(), spell.projectileShape());
     }
 
     public static float of(SpellDefinition spell, float formMastery, float elementMastery) {
@@ -30,19 +30,30 @@ public final class SpellCost {
     }
 
     public static float of(CastMode mode, Form form, SpellElement element, float power) {
+        return of(mode, form, element, power, ProjectileShape.ORB);
+    }
+
+    public static float of(CastMode mode, Form form, SpellElement element, float power, ProjectileShape shape) {
         if (mode == null || form == null || element == null) {
             throw new IllegalArgumentException("mode/form/element");
         }
         if (power <= 0.0F || Float.isNaN(power) || Float.isInfinite(power)) {
             throw new IllegalArgumentException("power");
         }
-        return base(mode) * formMult(form) * element.getManaMultiplier() * power;
+        ProjectileShape resolved = shape == null ? ProjectileShape.ORB : shape;
+        return base(mode) * formMult(form) * element.getManaMultiplier() * resolved.manaMultiplier() * power;
     }
 
     public static float of(
             CastMode mode, Form form, SpellElement element, float power,
             float formMastery, float elementMastery) {
-        return applyMastery(of(mode, form, element, power), formMastery, elementMastery);
+        return of(mode, form, element, power, ProjectileShape.ORB, formMastery, elementMastery);
+    }
+
+    public static float of(
+            CastMode mode, Form form, SpellElement element, float power, ProjectileShape shape,
+            float formMastery, float elementMastery) {
+        return applyMastery(of(mode, form, element, power, shape), formMastery, elementMastery);
     }
 
     public static float applyMastery(float base, float formMastery, float elementMastery) {

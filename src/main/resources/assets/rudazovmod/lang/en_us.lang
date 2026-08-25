@@ -39,3 +39,7 @@ spell.rudazovmod.element.fire=Fire
 spell.rudazovmod.element.ice=Ice
 spell.rudazovmod.element.earth=Earth
 spell.rudazovmod.element.life=Life
+spell.rudazovmod.shape.orb=Orb
+spell.rudazovmod.shape.arrow=Arrow
+spell.rudazovmod.shape.spear=Spear
+spell.rudazovmod.shape.hammer=Hammer

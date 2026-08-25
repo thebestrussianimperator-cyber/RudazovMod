@@ -5,6 +5,7 @@ import com.poleesteel.rudazovmod.capabilities.ActiveSpiritProvider;
 import com.poleesteel.rudazovmod.capabilities.IActiveSpirit;
 import com.poleesteel.rudazovmod.spell.api.CastMode;
 import com.poleesteel.rudazovmod.spell.api.Form;
+import com.poleesteel.rudazovmod.spell.api.ProjectileShape;
 import com.poleesteel.rudazovmod.spell.api.SpellCombination;
 import com.poleesteel.rudazovmod.spell.api.SpellCost;
 import com.poleesteel.rudazovmod.spell.api.SpellDefinition;
@@ -77,7 +78,7 @@ public class CommandRudazov extends CommandBase {
             }
         } else {
             msg(player, TextFormatting.RED, "Использование: " + getUsage(sender));
-            msg(player, TextFormatting.GRAY, "/rudazovmod craft <mode> <target> <form> <element> <power>");
+            msg(player, TextFormatting.GRAY, "/rudazovmod craft <mode> <target> <form> <element> <power> [shape]");
             msg(player, TextFormatting.GRAY, "/rudazovmod bind <1-4> <spell_id>");
             msg(player, TextFormatting.GRAY, "/rudazovmod chakra [up]  (up — отладка, +20 к развитию)");
         }
@@ -117,6 +118,9 @@ public class CommandRudazov extends CommandBase {
             }
             if (args.length == 5) {
                 return getListOfStringsMatchingLastWord(args, enumNames(SpellElement.class));
+            }
+            if (args.length == 7) {
+                return getListOfStringsMatchingLastWord(args, enumNames(ProjectileShape.class));
             }
         }
         return Collections.emptyList();
@@ -246,6 +250,16 @@ public class CommandRudazov extends CommandBase {
             return;
         }
 
+        ProjectileShape shape = ProjectileShape.ORB;
+        if (args.length >= 7) {
+            Optional<ProjectileShape> parsed = SpellDefinition.parseEnum(ProjectileShape.class, args[6]);
+            if (!parsed.isPresent()) {
+                msg(player, TextFormatting.RED, "Неизвестная форма снаряда. Варианты: " + joinNames(ProjectileShape.class));
+                return;
+            }
+            shape = parsed.get();
+        }
+
         if (!SpellCombination.canCast(form.get(), target.get(), mode.get())) {
             if (SpellCombination.isLegal(form.get(), target.get(), mode.get())) {
                 msg(player, TextFormatting.RED,
@@ -256,7 +270,8 @@ public class CommandRudazov extends CommandBase {
             }
             return;
         }
-        int need = SpellProgression.requiredChakra(form.get(), target.get(), mode.get(), element.get(), power);
+        int need = SpellProgression.requiredChakra(
+                form.get(), target.get(), mode.get(), element.get(), power, shape);
         if (spirit.getChakraLevel() < need) {
             msg(player, TextFormatting.RED, "Нужна ступень чакр " + need
                     + " (сейчас " + spirit.getChakraLevel() + ").");
@@ -270,8 +285,9 @@ public class CommandRudazov extends CommandBase {
             return;
         }
 
+        boolean wantedShape = shape != ProjectileShape.ORB;
         Optional<SpellDefinition> made = SpellBook.craft(
-                player, mode.get(), target.get(), form.get(), element.get(), power, -1);
+                player, mode.get(), target.get(), form.get(), element.get(), power, shape, -1);
         if (!made.isPresent()) {
             msg(player, TextFormatting.RED, "Не удалось собрать заклинание.");
             return;
@@ -279,6 +295,10 @@ public class CommandRudazov extends CommandBase {
         SpellDefinition spell = made.get();
         msg(player, TextFormatting.GREEN, "Собрано: " + spell.id());
         msg(player, TextFormatting.GRAY, formatSpell(spirit, spell));
+        if (wantedShape && spell.projectileShape() != shape) {
+            msg(player, TextFormatting.GRAY,
+                    "Форма снаряда учитывается только для RAY + INSTANT + NONE; записано ORB.");
+        }
         msg(player, TextFormatting.GRAY, "Привязка: /rudazovmod bind 1 " + spell.id());
     }
 
@@ -310,8 +330,9 @@ public class CommandRudazov extends CommandBase {
                 spell, spirit.getFormMastery(spell.form()), spirit.getElementMastery(spell.element()));
         int need = SpellProgression.requiredChakra(spell);
         String lock = spirit.getChakraLevel() >= need ? "" : " [ступень " + need + "]";
+        String shape = SpellCombination.usesProjectileShape(spell) ? " " + spell.projectileShape() : "";
         return spell.castMode() + " " + spell.targetType() + " " + spell.form() + " " + spell.element()
-                + " p=" + spell.power() + " cost=" + formatNum(cost) + lock;
+                + shape + " p=" + spell.power() + " cost=" + formatNum(cost) + lock;
     }
 
     private static String formatNum(float value) {

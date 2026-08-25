@@ -2,6 +2,7 @@ package com.poleesteel.rudazovmod.network;
 
 import com.poleesteel.rudazovmod.spell.api.CastMode;
 import com.poleesteel.rudazovmod.spell.api.Form;
+import com.poleesteel.rudazovmod.spell.api.ProjectileShape;
 import com.poleesteel.rudazovmod.spell.api.SpellElement;
 import com.poleesteel.rudazovmod.spell.api.TargetType;
 import com.poleesteel.rudazovmod.spell.engine.SpellBook;
@@ -20,16 +21,24 @@ public class PacketCraftSpell implements IMessage {
     private int target;
     private int form;
     private int element;
+    private int shape;
     private float power;
     private int bindSlot;
 
     public PacketCraftSpell() {}
 
     public PacketCraftSpell(CastMode mode, TargetType target, Form form, SpellElement element, float power, int bindSlot) {
+        this(mode, target, form, element, ProjectileShape.ORB, power, bindSlot);
+    }
+
+    public PacketCraftSpell(
+            CastMode mode, TargetType target, Form form, SpellElement element,
+            ProjectileShape shape, float power, int bindSlot) {
         this.mode = mode.ordinal();
         this.target = target.ordinal();
         this.form = form.ordinal();
         this.element = element.ordinal();
+        this.shape = (shape == null ? ProjectileShape.ORB : shape).ordinal();
         this.power = power;
         this.bindSlot = bindSlot;
     }
@@ -40,6 +49,7 @@ public class PacketCraftSpell implements IMessage {
         this.target = buf.readByte();
         this.form = buf.readByte();
         this.element = buf.readByte();
+        this.shape = buf.readByte();
         this.power = buf.readFloat();
         this.bindSlot = buf.readInt();
     }
@@ -50,6 +60,7 @@ public class PacketCraftSpell implements IMessage {
         buf.writeByte(this.target);
         buf.writeByte(this.form);
         buf.writeByte(this.element);
+        buf.writeByte(this.shape);
         buf.writeFloat(this.power);
         buf.writeInt(this.bindSlot);
     }
@@ -63,10 +74,12 @@ public class PacketCraftSpell implements IMessage {
                 TargetType target = ordinal(TargetType.values(), message.target);
                 Form form = ordinal(Form.values(), message.form);
                 SpellElement element = ordinal(SpellElement.values(), message.element);
+                ProjectileShape shape = ordinal(ProjectileShape.values(), message.shape);
                 if (mode == null || target == null || form == null || element == null) {
                     return;
                 }
-                SpellBook.craft(player, mode, target, form, element, message.power, message.bindSlot);
+                SpellBook.craft(player, mode, target, form, element, message.power,
+                        shape == null ? ProjectileShape.ORB : shape, message.bindSlot);
             });
             return null;
         }

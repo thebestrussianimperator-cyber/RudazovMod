@@ -61,4 +61,16 @@ public final class SpellCombination {
     public static boolean canCast(Form form, TargetType target, CastMode mode) {
         return isImplemented(form, target, mode);
     }
+
+    /**
+     * Снаряд {@link com.poleesteel.rudazovmod.entities.EntitySpellProjectile}: только RAY INSTANT без цели.
+     * CHANNEL-луч и RAY ENTITY (хитскан) форму снаряда не используют.
+     */
+    public static boolean usesProjectileShape(SpellDefinition spell) {
+        return spell != null && usesProjectileShape(spell.form(), spell.targetType(), spell.castMode());
+    }
+
+    public static boolean usesProjectileShape(Form form, TargetType target, CastMode mode) {
+        return form == Form.RAY && target == TargetType.NONE && mode == CastMode.INSTANT;
+    }
 }

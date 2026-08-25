@@ -7,6 +7,7 @@ import com.poleesteel.rudazovmod.network.PacketCraftSpell;
 import com.poleesteel.rudazovmod.network.PacketHandler;
 import com.poleesteel.rudazovmod.spell.api.CastMode;
 import com.poleesteel.rudazovmod.spell.api.Form;
+import com.poleesteel.rudazovmod.spell.api.ProjectileShape;
 import com.poleesteel.rudazovmod.spell.api.SpellCombination;
 import com.poleesteel.rudazovmod.spell.api.SpellCost;
 import com.poleesteel.rudazovmod.spell.api.SpellDefinition;
@@ -37,7 +38,8 @@ import java.util.Optional;
 public class GuiGrimoire extends GuiScreen {
 
     private static final int PANEL_W = 360;
-    private static final int PANEL_H = 220;
+    private static final int PANEL_H_BASE = 220;
+    private static final int PANEL_H_SHAPE = 248;
     private static final int LIST_VISIBLE = 7;
     private static final int ID_SLOT = 0;
     private static final int ID_FORM = 10;
@@ -47,6 +49,7 @@ public class GuiGrimoire extends GuiScreen {
     private static final int ID_POWER_MINUS = 50;
     private static final int ID_POWER_PLUS = 51;
     private static final int ID_CRAFT = 60;
+    private static final int ID_SHAPE = 70;
     private static final int ID_LIST = 100;
 
     private int guiLeft;
@@ -57,7 +60,10 @@ public class GuiGrimoire extends GuiScreen {
     private TargetType target = TargetType.NONE;
     private CastMode mode = CastMode.INSTANT;
     private SpellElement element = SpellElement.FIRE;
+    private ProjectileShape shape = ProjectileShape.ORB;
     private float power = 1.0F;
+    private int powerTextY;
+    private int costTextY;
     private final List<String> hoveredTip = new ArrayList<>();
     private int hoveredX;
     private int hoveredY;
@@ -65,13 +71,22 @@ public class GuiGrimoire extends GuiScreen {
 
     @Override
     public void initGui() {
-        this.guiLeft = (this.width - PANEL_W) / 2;
-        this.guiTop = (this.height - PANEL_H) / 2;
         sanitizeAxes();
+        layout();
         buildButtons();
     }
 
+    private void layout() {
+        this.guiLeft = (this.width - PANEL_W) / 2;
+        this.guiTop = (this.height - panelH()) / 2;
+    }
+
+    private int panelH() {
+        return showsShape() ? PANEL_H_SHAPE : PANEL_H_BASE;
+    }
+
     private void rebuild() {
+        layout();
         this.buttonList.clear();
         buildButtons();
     }
@@ -114,13 +129,36 @@ public class GuiGrimoire extends GuiScreen {
         addModeRow(cx, cy);
         cy += 20;
         addEnumRow(ID_ELEMENT, cx, cy, SpellElement.values(), this.element, 44);
-        cy += 22;
+        cy += 20;
+        if (showsShape()) {
+            addShapeRow(cx, cy);
+            cy += 20;
+        }
+        cy += 2;
+        this.powerTextY = cy + 4;
         this.buttonList.add(new GuiButton(ID_POWER_MINUS, cx, cy, 18, 16, "-"));
         this.buttonList.add(new GuiButton(ID_POWER_PLUS, cx + 164, cy, 18, 16, "+"));
         cy += 20;
         GuiButton craft = new GuiButton(ID_CRAFT, cx, cy, 184, 18, I18n.format("gui.rudazovmod.grimoire.craft"));
-        craft.enabled = comboOpen(this.form, this.target, this.mode, this.element, this.power);
+        craft.enabled = comboOpen(this.form, this.target, this.mode, this.element, this.power, this.shape);
         this.buttonList.add(craft);
+        this.costTextY = cy + 22;
+    }
+
+    private void addShapeRow(int x, int y) {
+        int col = 0;
+        for (int i = 0; i < ProjectileShape.values().length; i++) {
+            ProjectileShape value = ProjectileShape.values()[i];
+            if (!shapeOpen(value)) {
+                continue;
+            }
+            GuiButton btn = new GuiButton(ID_SHAPE + i, x + col * 48, y, 44, 16, axisName(value));
+            if (value == this.shape) {
+                btn.packedFGColour = 0x55AAFF;
+            }
+            this.buttonList.add(btn);
+            col++;
+        }
     }
 
     private void addEnumRow(int idBase, int x, int y, Enum<?>[] values, Enum<?> selected, int width) {
@@ -178,7 +216,7 @@ public class GuiGrimoire extends GuiScreen {
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         this.hoveredTip.clear();
         drawDefaultBackground();
-        drawRect(this.guiLeft, this.guiTop, this.guiLeft + PANEL_W, this.guiTop + PANEL_H, 0xC0101010);
+        drawRect(this.guiLeft, this.guiTop, this.guiLeft + PANEL_W, this.guiTop + panelH(), 0xC0101010);
         drawRect(this.guiLeft, this.guiTop, this.guiLeft + PANEL_W, this.guiTop + 18, 0xFF1A1A28);
         this.fontRenderer.drawString(
                 I18n.format("gui.rudazovmod.grimoire.title"),
@@ -194,19 +232,19 @@ public class GuiGrimoire extends GuiScreen {
                 this.guiLeft + 168, this.guiTop + 46, 0xAAAAAA);
 
         String powerText = I18n.format("gui.rudazovmod.grimoire.power") + " " + formatPower(this.power);
-        this.fontRenderer.drawString(powerText, this.guiLeft + 190, this.guiTop + 143, 0xFFFFFF);
+        this.fontRenderer.drawString(powerText, this.guiLeft + 190, this.powerTextY, 0xFFFFFF);
 
-        if (comboOpen(this.form, this.target, this.mode, this.element, this.power)) {
+        if (comboOpen(this.form, this.target, this.mode, this.element, this.power, this.shape)) {
             IActiveSpirit spirit = spirit();
             float formM = spirit == null ? 0.0F : spirit.getFormMastery(this.form);
             float elemM = spirit == null ? 0.0F : spirit.getElementMastery(this.element);
-            float cost = SpellCost.of(this.mode, this.form, this.element, this.power, formM, elemM);
+            float cost = SpellCost.of(this.mode, this.form, this.element, this.power, effectiveShape(), formM, elemM);
             String costKey = this.mode == CastMode.CHANNEL
                     ? "gui.rudazovmod.grimoire.cost_tick"
                     : "gui.rudazovmod.grimoire.cost_once";
             this.fontRenderer.drawString(
                     I18n.format("gui.rudazovmod.grimoire.cost") + " " + formatPower(cost) + " " + I18n.format(costKey),
-                    this.guiLeft + 168, this.guiTop + 200, 0x88CCFF);
+                    this.guiLeft + 168, this.costTextY, 0x88CCFF);
         }
 
         super.drawScreen(mouseX, mouseY, partialTicks);
@@ -238,11 +276,17 @@ public class GuiGrimoire extends GuiScreen {
         }
         if (id >= ID_MODE && id < ID_MODE + CastMode.values().length) {
             this.mode = CastMode.values()[id - ID_MODE];
+            sanitizeAxes();
             rebuild();
             return;
         }
         if (id >= ID_ELEMENT && id < ID_ELEMENT + SpellElement.values().length) {
             this.element = SpellElement.values()[id - ID_ELEMENT];
+            rebuild();
+            return;
+        }
+        if (id >= ID_SHAPE && id < ID_SHAPE + ProjectileShape.values().length) {
+            this.shape = ProjectileShape.values()[id - ID_SHAPE];
             rebuild();
             return;
         }
@@ -257,9 +301,9 @@ public class GuiGrimoire extends GuiScreen {
             return;
         }
         if (id == ID_CRAFT) {
-            if (comboOpen(this.form, this.target, this.mode, this.element, this.power)) {
+            if (comboOpen(this.form, this.target, this.mode, this.element, this.power, this.shape)) {
                 PacketHandler.INSTANCE.sendToServer(new PacketCraftSpell(
-                        this.mode, this.target, this.form, this.element, this.power, this.selectedSlot));
+                        this.mode, this.target, this.form, this.element, effectiveShape(), this.power, this.selectedSlot));
             }
             return;
         }
@@ -267,8 +311,11 @@ public class GuiGrimoire extends GuiScreen {
             List<SpellDefinition> owned = ownedSpells();
             int index = id - ID_LIST;
             if (index >= 0 && index < owned.size()) {
+                SpellDefinition spell = owned.get(index);
+                loadAxes(spell);
                 PacketHandler.INSTANCE.sendToServer(
-                        new PacketBindSpell(this.selectedSlot, owned.get(index).id().toString()));
+                        new PacketBindSpell(this.selectedSlot, spell.id().toString()));
+                rebuild();
             }
         }
     }
@@ -304,6 +351,7 @@ public class GuiGrimoire extends GuiScreen {
         int stamp = bookStamp();
         if (stamp != this.lastBookStamp) {
             this.lastBookStamp = stamp;
+            sanitizeAxes();
             rebuild();
         }
     }
@@ -326,18 +374,42 @@ public class GuiGrimoire extends GuiScreen {
             }
         }
         clampPower();
-        if (comboOpen(this.form, this.target, this.mode, this.element, this.power)) {
+        if (!showsShape() || !shapeOpen(this.shape)) {
+            this.shape = ProjectileShape.ORB;
+            if (showsShape() && !shapeOpen(this.shape)) {
+                for (ProjectileShape next : ProjectileShape.values()) {
+                    if (shapeOpen(next)) {
+                        this.shape = next;
+                        break;
+                    }
+                }
+            }
+        }
+        if (comboOpen(this.form, this.target, this.mode, this.element, this.power, this.shape)) {
             return;
         }
         for (TargetType nextTarget : TargetType.values()) {
             for (CastMode nextMode : CastMode.values()) {
-                if (comboOpen(this.form, nextTarget, nextMode, this.element, this.power)) {
+                if (comboOpen(this.form, nextTarget, nextMode, this.element, this.power, this.shape)) {
                     this.target = nextTarget;
                     this.mode = nextMode;
+                    if (!showsShape()) {
+                        this.shape = ProjectileShape.ORB;
+                    }
                     return;
                 }
             }
         }
+    }
+
+    private void loadAxes(SpellDefinition spell) {
+        this.form = spell.form();
+        this.target = spell.targetType();
+        this.mode = spell.castMode();
+        this.element = spell.element();
+        this.power = spell.power();
+        this.shape = spell.projectileShape();
+        sanitizeAxes();
     }
 
     private void clampPower() {
@@ -380,8 +452,32 @@ public class GuiGrimoire extends GuiScreen {
     }
 
     private boolean comboOpen(Form form, TargetType target, CastMode mode, SpellElement element, float power) {
+        return comboOpen(form, target, mode, element, power, this.shape);
+    }
+
+    private boolean comboOpen(
+            Form form, TargetType target, CastMode mode, SpellElement element, float power, ProjectileShape shape) {
+        ProjectileShape resolved = SpellCombination.usesProjectileShape(form, target, mode)
+                ? (shape == null ? ProjectileShape.ORB : shape)
+                : ProjectileShape.ORB;
         return SpellCombination.canCast(form, target, mode)
-                && SpellProgression.meetsChakra(chakra(), form, target, mode, element, power);
+                && SpellProgression.meetsChakra(chakra(), form, target, mode, element, power, resolved);
+    }
+
+    private boolean showsShape() {
+        return SpellCombination.usesProjectileShape(this.form, this.target, this.mode);
+    }
+
+    private boolean shapeOpen(ProjectileShape shape) {
+        if (shape == null || !showsShape()) {
+            return shape == ProjectileShape.ORB;
+        }
+        return SpellProgression.meetsChakra(
+                chakra(), this.form, this.target, this.mode, this.element, this.power, shape);
+    }
+
+    private ProjectileShape effectiveShape() {
+        return showsShape() ? this.shape : ProjectileShape.ORB;
     }
 
     private int chakra() {
@@ -500,13 +596,19 @@ public class GuiGrimoire extends GuiScreen {
     }
 
     public static String shortName(SpellDefinition spell) {
+        if (SpellCombination.usesProjectileShape(spell)) {
+            return axisName(spell.projectileShape()) + " " + axisName(spell.element());
+        }
         return axisName(spell.form()) + " " + axisName(spell.element());
     }
 
     static String axes(SpellDefinition spell) {
-        return axisName(spell.castMode()) + " / " + axisName(spell.targetType())
-                + " / " + axisName(spell.form()) + " / " + axisName(spell.element())
-                + " p=" + formatPower(spell.power());
+        String text = axisName(spell.castMode()) + " / " + axisName(spell.targetType())
+                + " / " + axisName(spell.form()) + " / " + axisName(spell.element());
+        if (SpellCombination.usesProjectileShape(spell)) {
+            text += " / " + axisName(spell.projectileShape());
+        }
+        return text + " p=" + formatPower(spell.power());
     }
 
     static String axisName(Enum<?> value) {
@@ -519,6 +621,8 @@ public class GuiGrimoire extends GuiScreen {
             kind = "mode";
         } else if (value instanceof SpellElement) {
             kind = "element";
+        } else if (value instanceof ProjectileShape) {
+            kind = "shape";
         } else {
             return value.name();
         }
