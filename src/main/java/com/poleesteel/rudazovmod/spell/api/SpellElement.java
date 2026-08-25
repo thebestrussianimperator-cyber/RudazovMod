@@ -16,6 +16,7 @@ import net.minecraft.util.DamageSource;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumParticleTypes;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.world.World;
 
 /**
@@ -242,6 +243,55 @@ public enum SpellElement {
                 break;
             default:
                 break;
+        }
+    }
+
+    /**
+     * Площадный удар мира (молот). Слабее точечного {@link #onWorldHit}: огонь по земле,
+     * лёд морозит воду, земля крошит мягкое, жизнь растит культуры.
+     */
+    public void onAreaWorldHit(World world, BlockPos center, float power, float radius,
+            EntityLivingBase caster) {
+        if (world == null || world.isRemote || center == null || radius <= 0.01F) {
+            return;
+        }
+        float useRadius = this == EARTH ? radius * 0.55F : radius;
+        int r = MathHelper.ceil(useRadius);
+        float radiusSq = useRadius * useRadius;
+        float areaPower = power * 0.45F;
+        for (int dx = -r; dx <= r; dx++) {
+            for (int dy = -r; dy <= r; dy++) {
+                for (int dz = -r; dz <= r; dz++) {
+                    if (dx * dx + dy * dy + dz * dz > radiusSq) {
+                        continue;
+                    }
+                    BlockPos pos = center.add(dx, dy, dz);
+                    if (caster instanceof EntityPlayer
+                            && !world.isBlockModifiable((EntityPlayer) caster, pos)) {
+                        continue;
+                    }
+                    switch (this) {
+                        case FIRE:
+                            if (world.isAirBlock(pos)
+                                    && !world.isAirBlock(pos.down())
+                                    && Blocks.FIRE.canPlaceBlockAt(world, pos)) {
+                                world.setBlockState(pos, Blocks.FIRE.getDefaultState());
+                            }
+                            break;
+                        case ICE:
+                            freezeBlock(world, pos);
+                            break;
+                        case EARTH:
+                            punchBlock(world, pos, areaPower, true);
+                            break;
+                        case LIFE:
+                            tryGrow(world, pos);
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            }
         }
     }
 

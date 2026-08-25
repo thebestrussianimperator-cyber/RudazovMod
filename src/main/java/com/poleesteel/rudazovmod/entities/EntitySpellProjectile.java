@@ -16,6 +16,7 @@ import net.minecraft.network.datasync.EntityDataManager;
 import net.minecraft.util.EnumParticleTypes;
 import net.minecraft.util.SoundCategory;
 import net.minecraft.util.SoundEvent;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.RayTraceResult;
 import net.minecraft.util.math.Vec3d;
@@ -156,6 +157,7 @@ public class EntitySpellProjectile extends EntityThrowable {
         if (!this.world.isRemote && this.ticksExisted > getShape().maxLife()) {
             if (getShape().slamsOnExpire()) {
                 impactSplash(null);
+                impactWorldSplash(this.getPosition());
                 playImpactFx();
             }
             this.setDead();
@@ -184,6 +186,7 @@ public class EntitySpellProjectile extends EntityThrowable {
             this.piercedIds.add(target.getEntityId());
             hitLiving(target, element, power, shape, 1.0F);
             impactSplash(target);
+            impactWorldSplash(this.getPosition());
             playImpactFx();
             if (this.pierceLeft > 0) {
                 this.pierceLeft--;
@@ -203,6 +206,7 @@ public class EntitySpellProjectile extends EntityThrowable {
             element.onWorldHit(this.world, result.getBlockPos(), result.sideHit,
                     power * shape.hitPowerMultiplier(), this.getThrower(), true);
             impactSplash(null);
+            impactWorldSplash(result.getBlockPos());
             playImpactFx();
         }
         this.setDead();
@@ -403,22 +407,44 @@ public class EntitySpellProjectile extends EntityThrowable {
             return;
         }
         SpellElement element = getElement();
-        float splashPower = getPower() * shape.splashPowerFactor();
         List<EntityLivingBase> nearby = this.world.getEntitiesWithinAABB(
                 EntityLivingBase.class, this.getEntityBoundingBox().grow(radius));
         for (EntityLivingBase living : nearby) {
             if (!living.isEntityAlive() || living == this.getThrower() || living == primary) {
                 continue;
             }
-            if (this.getDistance(living) > radius) {
+            float dist = this.getDistance(living);
+            if (dist > radius) {
                 continue;
             }
             if (this.piercedIds.contains(living.getEntityId())) {
                 continue;
             }
             this.piercedIds.add(living.getEntityId());
-            hitLiving(living, element, splashPower / Math.max(0.01F, shape.hitPowerMultiplier()), shape, 0.45F);
+            float powerScale;
+            float kbScale;
+            if (shape == ProjectileShape.HAMMER) {
+                float falloff = 1.0F - dist / Math.max(0.01F, radius);
+                powerScale = shape.splashPowerFactor() * (0.55F + 0.45F * falloff);
+                kbScale = shape.splashKnockbackFactor() * (0.50F + 0.50F * falloff);
+            } else {
+                powerScale = shape.splashPowerFactor();
+                kbScale = 0.45F;
+            }
+            float splashPower = getPower() * powerScale;
+            hitLiving(living, element, splashPower / Math.max(0.01F, shape.hitPowerMultiplier()), shape, kbScale);
         }
+    }
+
+    /**
+     * Мировой сплэш только у молота: стихия красится по площади вокруг точки удара.
+     */
+    private void impactWorldSplash(BlockPos center) {
+        if (getShape() != ProjectileShape.HAMMER || center == null) {
+            return;
+        }
+        float radius = getShape().splashRadius(getPower());
+        getElement().onAreaWorldHit(this.world, center, getPower(), radius, this.getThrower());
     }
 
     private void applyShapeKnockback(EntityLivingBase target, float factor) {
@@ -430,7 +456,11 @@ public class EntitySpellProjectile extends EntityThrowable {
         EntityLivingBase thrower = this.getThrower();
         double dx;
         double dz;
-        if (thrower != null) {
+        boolean radial = shape == ProjectileShape.HAMMER && factor < 0.999F;
+        if (radial) {
+            dx = this.posX - target.posX;
+            dz = this.posZ - target.posZ;
+        } else if (thrower != null) {
             dx = thrower.posX - target.posX;
             dz = thrower.posZ - target.posZ;
         } else {
@@ -438,8 +468,9 @@ public class EntitySpellProjectile extends EntityThrowable {
             dz = -this.motionZ;
         }
         target.knockBack(this, strength, dx, dz);
-        if (shape == ProjectileShape.HAMMER) {
-            target.motionY += 0.32D * getPower() * factor;
+        float lift = shape.slamLift(getPower()) * factor;
+        if (lift > 0.01F) {
+            target.motionY += lift;
             target.velocityChanged = true;
         }
     }
@@ -468,10 +499,10 @@ public class EntitySpellProjectile extends EntityThrowable {
                 break;
             case HAMMER:
                 sound = SoundEvents.BLOCK_ANVIL_LAND;
-                volume = 0.55F;
-                pitch = 0.7F;
-                burst = EnumParticleTypes.SMOKE_LARGE;
-                count = 14;
+                volume = 0.95F;
+                pitch = 0.55F;
+                burst = EnumParticleTypes.EXPLOSION_NORMAL;
+                count = 18;
                 break;
             case ORB:
             default:
@@ -485,7 +516,14 @@ public class EntitySpellProjectile extends EntityThrowable {
         this.world.playSound(null, this.posX, this.posY, this.posZ, sound, SoundCategory.PLAYERS, volume, pitch);
         if (this.world instanceof WorldServer) {
             WorldServer server = (WorldServer) this.world;
-            double spread = shape == ProjectileShape.HAMMER || shape == ProjectileShape.ORB ? 0.35D : 0.12D;
+            double spread;
+            if (shape == ProjectileShape.HAMMER) {
+                spread = Math.max(0.55D, shape.splashRadius(getPower()) * 0.40D);
+            } else if (shape == ProjectileShape.ORB) {
+                spread = 0.35D;
+            } else {
+                spread = 0.12D;
+            }
             server.spawnParticle(burst, this.posX, this.posY, this.posZ, count, spread, spread, spread, 0.04D);
             int color = getElement().getColor();
             double r = ((color >> 16) & 0xFF) / 255.0D;
@@ -499,6 +537,10 @@ public class EntitySpellProjectile extends EntityThrowable {
             if (shape == ProjectileShape.ORB) {
                 server.spawnParticle(EnumParticleTypes.SPELL_INSTANT, this.posX, this.posY, this.posZ,
                         6, r * 0.01D, g * 0.01D, b * 0.01D, 0.0D);
+            }
+            if (shape == ProjectileShape.HAMMER) {
+                server.spawnParticle(EnumParticleTypes.SMOKE_LARGE, this.posX, this.posY, this.posZ,
+                        12, spread, 0.20D, spread, 0.02D);
             }
         }
     }

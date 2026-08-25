@@ -18,7 +18,7 @@ public enum ProjectileShape {
             case SPEAR:
                 return 1.12F;
             case HAMMER:
-                return 1.22F;
+                return 1.35F;
             case ORB:
             default:
                 return 1.0F;
@@ -109,20 +109,38 @@ public enum ProjectileShape {
         return Math.max(1, (int) power);
     }
 
+    /**
+     * Радиус урона по площади. ORB — маленький хлопок, не усиливать.
+     * HAMMER — врождённый удар по области (~2 блока на power 1, растёт с силой).
+     */
     public float splashRadius(float power) {
         float p = Math.max(0.5F, power);
         switch (this) {
             case ORB:
                 return 1.4F + 0.35F * p;
             case HAMMER:
-                return 1.0F + 0.25F * p;
+                return 1.75F + 0.50F * p;
             default:
                 return 0.0F;
         }
     }
 
+    /** Доля силы для целей в сплэше (до множителя удара формы). */
     public float splashPowerFactor() {
-        return this == HAMMER ? 0.35F : 0.45F;
+        return this == HAMMER ? 0.60F : 0.45F;
+    }
+
+    /** Множитель отброса для целей в сплэше, не для основной. */
+    public float splashKnockbackFactor() {
+        return this == HAMMER ? 0.58F : 0.45F;
+    }
+
+    /** Подброс основной цели. Только молот. */
+    public float slamLift(float power) {
+        if (this != HAMMER) {
+            return 0.0F;
+        }
+        return 0.45F * Math.max(0.5F, power);
     }
 
     public float hitPowerMultiplier() {
@@ -147,7 +165,7 @@ public enum ProjectileShape {
             case SPEAR:
                 return 0.35F * p;
             case HAMMER:
-                return 1.85F * p;
+                return 2.15F * p;
             case ORB:
             default:
                 return 0.28F * p;
