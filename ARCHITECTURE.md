@@ -16,7 +16,8 @@
 
 ### Предметы
 * `ItemBloodChain` (ID: `blood_chain`, вкладка `CreativeTabs.COMBAT`, макс. стак: 1). Оружие ближнего боя и инструмент дальнего контроля. В спецификации ранее указывалась прочность 250 — в коде `setMaxDamage` сейчас нет.
-* Базовые предметы (слиток кровавого железа, руда, блоки) — генерация в мире временно отложена.
+* `BloodIronIngot` (ID: `blood_iron_ingot`).
+* Блоки: `BloodIronBlock` (`blood_iron_block`), `BloodIronOre` (`blood_iron_ore`) — зарегистрированы, в инвентаре как `ItemBlock`. Генерация в мире временно отложена.
 
 ### Сущности
 * `EntityBloodChain` (ID: `blood_chain_entity`, Network ID: 1, tracker: range 64, update 1, sendVelocity true). Невидимая физическая сущность, отвечающая за логику контроля моба и точки привязки рендера.
@@ -54,7 +55,7 @@
 
 ## 4. Магия: текущее состояние
 
-Каст идёт через `spell.*`. Пакет `magic` — capability-тик (`MagicEventsHandler`) и остаток стихии для снаряда (`SpellElement`). Старый реестр уникальных спеллов удалён.
+Каст идёт через `spell.*`. Пакет `magic` — capability-тик (`MagicEventsHandler`). `SpellElement` живёт в `spell.api`. Старый реестр уникальных спеллов удалён.
 
 ### 4.1. Игрок и ресурс
 
@@ -81,7 +82,9 @@ Capability `IActiveSpirit`:
   * ICE — замедление, заморозка воды/лавы, вязкая тяга HOLD, медленный снаряд.
   * EARTH — тяжёлый удар и отброс, сильная тяга, швырок при отпускании HOLD, снаряд с гравитацией; INSTANT ломает мягкий блок.
   * LIFE — `onHit` лечит живых и бьёт нежить. `HOLD`+ENTITY высасывает HP в кастера. `SELF` лечит кастера. `RAY` по блоку — рост (`IGrowable`).
-* `RAY` INSTANT + NONE — `EntitySpellProjectile`. Вид задаёт `ProjectileShape` (баллистика, размер, удар); `HAMMER` бьёт по площади вокруг точки попадания. `Homing` слегка или сильнее корректирует курс к ближайшему живому мобу (см. §6.6). Стихия окрашивает след, частицы и `onHit`/`onWorldHit`. CHANNEL + NONE — луч (частицы стихии, `onHit` и `onWorldHit` раз в 5 тиков). Форма снаряда и самонаведение на канал не влияют.
+* `RAY` INSTANT + NONE — снаряд `EntitySpellProjectile`. Вид задаёт `ProjectileShape` (баллистика, размер, удар); `HAMMER` бьёт по площади вокруг точки попадания. `Homing` — §6.6. Стихия окрашивает след, частицы и `onHit`/`onWorldHit`.
+* `RAY` INSTANT + ENTITY — хитскан по взгляду (`LookTrace`, 16 блоков, стена ближе цели — промах). Снаряд не спавнится: `element.onHit` сразу по сущности. Промах на resolve — каста нет, мана не списывается. `ProjectileShape` / `Homing` на этой комбинации не живут (нормализуются в `ORB` / `NONE`). Пресет `test_heal`.
+* `RAY` CHANNEL + NONE — луч (частицы стихии, `onHit` и `onWorldHit` раз в 5 тиков). Форма снаряда и самонаведение не влияют.
 * `SELF` + NONE — эффект на кастера: LIFE хил, FIRE огнестойкость, ICE сопротивление, EARTH поглощение.
 * `HOLD` + ENTITY — тянет цель; стихия жжёт / морозит / швыряет / высасывает (`LIFE`).
 * `HOLD` + ITEM — то же для `EntityItem`; FIRE за ~1с плавит по рецепту печи.
@@ -105,13 +108,13 @@ Capability `IActiveSpirit`:
 
 ## 6. Движок заклинаний (`spell.*`)
 
-Скелет живёт в `com.poleesteel.rudazovmod.spell`. Пакет `magic` — старый прототип (телекинез, тестовые снаряды); его не расширять. Scripted-спеллы не пишем.
+Скелет живёт в `com.poleesteel.rudazovmod.spell`. Пакет `magic` — только capability: аттач, реген, clone, синк, тик `SpellEngine` (`MagicEventsHandler`). Логику каста и новые формы туда не тащить. Scripted-спеллы не пишем.
 
 ### Пакеты
 
 * `spell.api` — `CastMode` (INSTANT, CHANNEL), `TargetType` (NONE, ENTITY, ITEM, BLOCK), `Form` (RAY, HOLD, SELF), `ProjectileShape` (ORB, ARROW, SPEAR, HAMMER — только снаряд), `Homing` (NONE, WEAK, STRONG — только снаряд), `SpellDefinition` (record: id, оси, power, projectileShape, homing; `cost()` из осей; `writeNBT`/`readNBT`), `SpellCost`, `SpellCombination`, `SpellProgression` (чакры, мастерство, практика), `SpellTarget` (закрытый набор nested-record’ов Entity/Item/Block/None; `sealed` Jabel 1.0.1 не умеет), `CastContext`, `TargetResolver`, `FormHandler`.
-* `spell.engine` — `SpellEngine` (`startCast` / `tick` / `endCast` / `canCast`: матрица + ступень чакр + мана; практика после успешного каста: мастерство, развитие, maxMana), `SpellRegistry` (`registerDefaults()` — пресеты), `ActiveCastTracker` (один CHANNEL на игрока).
-* `spell.resolve` — `None` / `Entity` / `Item` / `Block` резолверы. ITEM — только `EntityItem`. ENTITY — не дроп. BLOCK — `RayTraceResult` (BlockHitResult в 1.12.2 нет).
+* `spell.engine` — `SpellEngine` (`startCast` / `tick` / `endCast` / `canCast`: матрица + ступень чакр + мана; практика после успешного каста: мастерство, развитие, maxMana; `findDefinition`: гримуар, иначе `SpellRegistry`), `SpellRegistry` (`registerDefaults()` — пресеты), `SpellBook` (серверный craft/bind; GUI и `/craft` ходят сюда, не в обход движка), `ActiveCastTracker` (один CHANNEL на игрока).
+* `spell.resolve` — `None` / `Entity` / `Item` / `Block` резолверы и общий `LookTrace` (дальность 16, стена ближе сущности — сущность не берём). ITEM — только `EntityItem`. ENTITY — живые/коллизируемые, не дроп. BLOCK — `RayTraceResult` (BlockHitResult в 1.12.2 нет).
 * `spell.form` — `RayFormHandler`, `HoldFormHandler` (`HOLD`+ENTITY/ITEM/BLOCK), `SelfFormHandler` (`SELF`+NONE).
 
 Хотбар (Z/X/C/V) шлёт START на нажатие слота и STOP на отпускание. Сервер: unlock/bind → `SpellEngine`.
@@ -143,7 +146,7 @@ Capability `IActiveSpirit`:
 | `power` | float на `SpellDefinition` |
 | `cost()` | не поле: `SpellCost` = `modeBase * formMult * element.manaMultiplier * shape.manaMultiplier * homing.manaMultiplier * power * (1 - masteryBonus)`. INSTANT base 8, CHANNEL 0.4/тик; RAY 1.0, HOLD 1.25, SELF 0.9. Shape: ORB 1.00, ARROW 1.08, SPEAR 1.12, HAMMER 1.35. Homing: NONE 1.00, WEAK 1.30, STRONG 1.70. `masteryBonus` — среднее мастерства формы и стихии / 100 × 0.40 (макс. скидка 40%, не ниже 50% базы). В NBT не пишется, всегда пересчёт. |
 
-`SELF`/`AREA` нет. Scripted-спеллы не делать.
+`AOE`/`AREA` и `CHARGE` в скелете нет. Scripted-спеллы не делать.
 
 ### 6.3. `TargetType`: почему не один «телекинез на всё»
 
@@ -162,25 +165,25 @@ Capability `IActiveSpirit`:
 
 `BLOCK` никогда не живёт в том же коде, что `motionX`. Это мутация мира, не физика сущности.
 
-#### Как тогда телекинез — потом, не сейчас
+#### Телекинез — три заклинания, одна форма
 
-Не два и не три уникальных класса. Одна форма захвата (рабочее имя `HOLD` / `GRAB`) + стихия силы (когда появится) + **три записи реестра**:
+Не два и не три уникальных класса. Одна форма `HOLD` (`HoldFormHandler`) + **три записи** с разным `TargetType`:
 
-* `hold` + `ENTITY` + CHANNEL — мобы и, при желании, другие живые
-* `hold` + `ITEM` + CHANNEL — дроп
-* `hold` + `BLOCK` + CHANNEL — блок (скорее всего отдельная реализация формы `HOLD_BLOCK`, потому что тик другой; это всё ещё форма движка, не «уникальный спелл»)
+* `HOLD` + `ENTITY` + CHANNEL — мобы / живые (не дроп)
+* `HOLD` + `ITEM` + CHANNEL — `EntityItem`
+* `HOLD` + `BLOCK` + CHANNEL — вынуть / нести / поставить. Груз живёт внутри формы (`CarriedBlock`), не отдельной формой `HOLD_BLOCK` и не новым Entity
 
 Игроку это три заклинания. Движку — `HOLD` + три `TargetType`. Пресеты: `test_hold`, `test_hold_item`, `test_hold_block`.
 
 ### 6.4. Режимы каста
 
-* **INSTANT** — клиент шлёт пакет по фронту нажатия (`isPressed`). Один каст: снаряд, волна, самобафф.
+* **INSTANT** — клиент шлёт пакет по фронту нажатия (`isPressed`). Один каст: снаряд, хитскан, самобафф.
 * **CHANNEL** — START при нажатии, STOP при отпускании / смерти / потере цели / нулевой мане. Состояние: `ActiveCastTracker.ActiveCast { spell (снимок), startTick, SpellTarget }`. Каждый серверный тик: `isStillValid` или `form.isTargetStillHeld` (вынутый блок) → списание маны → `form.onTick`.
 * **CHARGE** — не в первой итерации.
 
-`CHANNEL` — про удержание кнопки, не про телекинез. Первая проверка канала в движке может быть «луч/волна, пока держишь», без захвата мобов.
+`CHANNEL` — про удержание кнопки, не про телекинез. Живые каналы: луч (`RAY`+NONE), захват (`HOLD`), импульс на себя (`SELF`).
 
-Клиент больше не спамит INSTANT каждые 5 тиков.
+Клиент не спамит INSTANT каждые 5 тиков.
 
 `SpellTarget` — размеченное значение (entityId **или** BlockPos **или** пусто), не одно поле `targetId`. Иначе канал по блоку некуда сохранить.
 
@@ -190,7 +193,11 @@ Capability `IActiveSpirit`:
 
 ### 6.6. Формы
 
-* `RAY` — снаряд (INSTANT + NONE) или луч по взгляду (CHANNEL). Снаряд один (`EntitySpellProjectile`), вид — `ProjectileShape`:
+* `RAY` — три доставки. Снаряд один (`EntitySpellProjectile`), только у INSTANT + NONE:
+  * INSTANT + NONE — снаряд, вид — `ProjectileShape` (ниже).
+  * INSTANT + ENTITY — хитскан. Цель уже в `CastContext` после `EntityTargetResolver`. `onStart` зовёт `element.onHit` и не спавнит снаряд. Shape/Homing не читает.
+  * CHANNEL + NONE — луч по взгляду (`LookTrace`; `onHit` / `onWorldHit` раз в 5 тиков). Shape и Homing не читает.
+  Вид снаряда — `ProjectileShape`:
   * `ORB` — средняя скорость, обычная гравитация, средний размер, небольшой взрыв/область при ударе.
   * `ARROW` — высокая скорость, почти без гравитации, тонкий, точный урон, слабый отброс, дальняя дистанция.
   * `SPEAR` — высокая скорость, слабая гравитация, удлинённый, пробивает несколько целей.
@@ -207,7 +214,23 @@ Capability `IActiveSpirit`:
 
 ### 6.7. Состояние игрока (расширение capability)
 
-Есть: мана, maxMana, `spiritDevelopment`, ступень чакр (вычисляется), мастерство форм (`RAY`/`HOLD`/`SELF`) и стихий (`FIRE`/`ICE`/`EARTH`/`LIFE`) 0…100, unlocked, bound[4], гримуар (список `SpellDefinition`). Клиент получает книгу, мастерство и развитие через `PacketSyncSpirit`; мана и развитие ещё через `PacketSyncMana`.
+Есть: мана, maxMana, `spiritDevelopment`, ступень чакр (вычисляется, не хранится как источник истины), мастерство форм (`RAY`/`HOLD`/`SELF`) и стихий (`FIRE`/`ICE`/`EARTH`/`LIFE`) 0…100, unlocked, bound[4], гримуар (список `SpellDefinition`). `ownsSpell` = запись в гримуаре **или** unlock пресета. Клиент получает книгу, мастерство и развитие через `PacketSyncSpirit`; мана и развитие ещё через `PacketSyncMana`.
+
+NBT capability (`ActiveSpiritStorage`):
+
+| Ключ | Тип | Примечание |
+|---|---|---|
+| `CurrentMana` | float | не входит в `PacketSyncSpirit` |
+| `MaxMana` | float | не входит в `PacketSyncSpirit` |
+| `SpiritDevelopment` | float | источник ступени |
+| `ChakraLevel` | int | пишется; читается только если нет `SpiritDevelopment` (старые сейвы → порог ступени) |
+| `FormMastery` | compound | ключи = `Form.name()` |
+| `ElementMastery` | compound | ключи = `SpellElement.name()` |
+| `UnlockedSpells` | list string | канонические id |
+| `BoundSpells` | list compound | `Slot` 0–3, `SpellId` |
+| `Grimoire` | list compound | `SpellDefinition.writeNBT` |
+
+`PacketSyncSpirit` = `writeBookNBT`: книга + мастерство + развитие, без маны. Clone игрока копирует полный storage (включая ману).
 
 Добавить позже:
 * кулдаун по spellId
@@ -216,20 +239,22 @@ Capability `IActiveSpirit`:
 
 ### 6.8. Сеть
 
-| Пакет | Сторона | Назначение |
-|---|---|---|
-| `PacketCastSpell` | C→S | INSTANT: slotIndex. Либо START channel |
-| `PacketStopCast` | C→S | отпускание CHANNEL |
-| `PacketSyncMana` | S→C | мана / max / `spiritDevelopment`, каждые 5 тиков. Ступень клиент считает сам. |
-| `PacketSyncSpirit` | S→C | unlock + binds + гримуар + мастерство осей + развитие (id пакета 3). Не каждый тик. |
-| `PacketCraftSpell` | C→S | оси + `ProjectileShape` + `Homing` + power + слот (−1 = без bind). Id выдаёт сервер. |
-| `PacketBindSpell` | C→S | slot + id уже существующего определения. Сервер проверяет `ownsSpell`. |
+Discriminator’ы стабильны, не перенумеровывать.
+
+| Id | Пакет | Сторона | Назначение |
+|---|---|---|---|
+| 0 | `PacketSyncMana` | S→C | мана / max / `spiritDevelopment`, каждые 5 тиков. Ступень клиент считает сам. |
+| 1 | `PacketCastSpell` | C→S | номер слота 0–3: INSTANT или START channel. Сервер: bind → `findDefinition` → `ownsSpell` → `SpellEngine`. |
+| 2 | `PacketStopCast` | C→S | отпускание CHANNEL |
+| 3 | `PacketSyncSpirit` | S→C | unlock + binds + гримуар + мастерство + развитие (`writeBookNBT`). Логин / респавн / смена мира / craft / bind / unlock / практика. |
+| 4 | `PacketCraftSpell` | C→S | оси + `ProjectileShape` + `Homing` + power + слот (−1 = без bind). Id выдаёт сервер через `SpellBook.craft`. |
+| 5 | `PacketBindSpell` | C→S | slot + id уже существующего определения. Сервер проверяет `ownsSpell`. |
 
 Клиент не сообщает цель. Сервер резолвит её по `TargetType` спелла из слота.
 
 ### 6.9. Что не делать
 
-* Не писать уникальные заклинания. Скелет (resolver + engine + form stubs) уже стоит.
+* Не писать уникальные заклинания. Скелет (resolver + engine + forms) уже стоит.
 * Не склеивать entity/item/block в один спелл и не плодить три scripted-телекинеза.
 * Не воскрешать удалённый прототип (`AbstractSpell`, `TelekinesisLogic`, `CustomSpell`).
 * Не плодить Entity на каждую стихию, не плодить Entity на каждый `ProjectileShape` и не плодить Entity на каждый `Homing`.
@@ -249,11 +274,11 @@ Capability `IActiveSpirit`:
 
 * Пресеты (`test_ray` и т.п.) живут в `SpellRegistry` как шаблоны.
 * Собранные игроком — NBT в capability (гримуар): список `SpellDefinition`.
-* Id кастома: `rudazovmod:custom/<uuid>` или индекс в гримуаре. Каст: достать определение → `SpellEngine.startCast(player, definition)` без обязательной записи в статический реестр.
+* Id кастома: `rudazovmod:custom/<uuid>`. Каст: достать определение → `SpellEngine.startCast(player, definition)` без обязательной записи в статический реестр.
 
-`SpellDefinition` сериализуется через `writeNBT` / `readNBT` (id, оси, power, `ProjectileShape`, `Homing`). Id без `:` → namespace мода. Ключ `ProjectileShape` опционален: нет ключа → `ORB` (старые гримуары). Ключ `Homing` опционален: нет ключа → `NONE`. Стоимость **считать** из осей (`SpellCost`), не хардкодить и не доверять NBT. Незаконная комбинация не создаётся (компактный конструктор), мусор отвергается `SpellEngine` / `SpellRegistry.register` / `craft`. Не-снарядные комбинации нормализуют shape в `ORB` и homing в `NONE`.
+`SpellDefinition` сериализуется через `writeNBT` / `readNBT`. Ключи: `Id`, `CastMode`, `TargetType`, `Form`, `Element`, `Power`; опционально `ProjectileShape` (нет → `ORB`, старые гримуары) и `Homing` (нет → `NONE`). Id без `:` → namespace мода. Стоимость **считать** из осей (`SpellCost`), не хардкодить и не доверять NBT. Незаконная комбинация не создаётся (компактный конструктор), мусор отвергается `SpellEngine` / `SpellRegistry.register` / `craft`. Не-снарядные комбинации нормализуют shape в `ORB` и homing в `NONE`.
 
-Гримуар в `IActiveSpirit` (NBT-ключ `Grimoire`). Каст: `findDefinition` → `SpellEngine.startCast(player, definition)` без записи кастома в статический реестр. `craft` создаёт `rudazovmod:custom/<uuid>`, кладёт в гримуар и unlock.
+Гримуар в `IActiveSpirit` (NBT-ключ `Grimoire`). Каст: `findDefinition` (гримуар, иначе реестр) → `ownsSpell` → `SpellEngine.startCast(player, definition)` без записи кастома в статический реестр. `craft` создаёт `rudazovmod:custom/<uuid>`, кладёт в гримуар и unlock.
 
 ### 7.2. Какие комбинации вообще законны
 
@@ -264,7 +289,7 @@ Capability `IActiveSpirit`:
 |---|---|---|---|---|
 | RAY | NONE | INSTANT | снаряд (`ProjectileShape`) | да |
 | RAY | NONE | CHANNEL | луч по взгляду | да |
-| RAY | ENTITY | INSTANT | хитскан в моба | частично (ветка есть) |
+| RAY | ENTITY | INSTANT | хитскан (`LookTrace` → `onHit`, без снаряда) | да |
 | HOLD | ENTITY | CHANNEL | телекинез моба | да |
 | HOLD | ITEM | CHANNEL | телекинез дропа | да |
 | HOLD | BLOCK | CHANNEL | нести блок | да |
@@ -289,16 +314,17 @@ Capability `IActiveSpirit`:
 
 `SpellEngine` и `SpellBook.craft` смотрят на ступень, не на сырое число. Конструктор показывает оси текущей ступени и прогресс в шапке. Команда `unlock` по-прежнему открывает пресеты в книге, но каст закрытой комбинации не проходит. Мастерство снижает стоимость, порог мастерства для каста пока 0. Предметов и ритуалов для повышения чакр нет.
 
-### 7.4. Порядок работ (GUI в конце)
+### 7.4. `GuiGrimoire` (клавиша G)
 
-1. NBT у `SpellDefinition`, формула маны, валидатор комбинаций — **сделано** (`writeNBT`/`readNBT`, `SpellCost`, `SpellCombination`).
-2. Гримуар в `IActiveSpirit`, каст из него, `/rudazovmod craft` и `list` — **сделано**.
-3. Матрица `HOLD`+ITEM и `HOLD`+BLOCK — **сделано** (`SpellCombination.isImplemented`, пресеты `test_hold_item` / `test_hold_block`).
-4. Синк гримуара на клиент — **сделано** (`PacketSyncSpirit`).
-5. GUI сборки и слотов — **сделано** (`GuiGrimoire`, `SpellSlotHud`, `PacketCraftSpell` / `PacketBindSpell`). План §7 закрыт.
-6. Прогрессия осей — **сделано**: непрерывное `spiritDevelopment` от кастов, ступени по порогам 20, мастерство и рост maxMana. `upgradeChakras()` только отладка.
+План сборки закрыт: NBT определения, cost, матрица включая HOLD ITEM/BLOCK, гримуар, синк, GUI, прогрессия. `upgradeChakras()` — только отладка.
 
-Конструктор предлагает `SpellCombination.canCast` и оси, открытые текущей ступенью. Выбор `ProjectileShape` и `Homing` в `GuiGrimoire` только при `RAY`+`INSTANT`+`NONE`. Клик по записи гримуара копирует оси (включая shape и homing) в конструктор и биндит слот. Каст по-прежнему шлёт только номер слота.
+Клиентский экран, без пакета «открыть». Каст отсюда не уходит — только `PacketCraftSpell` / `PacketBindSpell`. Слоты Z/X/C/V по-прежнему шлют только номер слота.
+
+* Слева: четыре слота (выбранный подсвечен) и список владения — сначала гримуар, затем unlock-пресеты из `SpellRegistry`. Клик по записи копирует оси (включая shape и homing) в конструктор и биндит выбранный слот (`PacketBindSpell`).
+* Справа: оси. Кнопки только для `SpellCombination.canCast` **и** открытых текущей ступенью (`SpellProgression.meetsChakra`). Ряды `ProjectileShape` и `Homing` — только при `RAY`+`INSTANT`+`NONE`.
+* Power: шаг ±0.5, пол GUI 0.5, потолок GUI `min(5, maxPower(ступень))`. `/rudazovmod craft` шире: пол `SpellBook.MIN_POWER` 0.25, потолок `min(SpellBook.MAX_POWER 10, maxPower(ступень))`.
+* Craft: оси + выбранный слот (GUI всегда биндит 0–3). Сервер: `SpellBook.craft` → id `rudazovmod:custom/<uuid>`, `putSpell`+`unlockSpell`, bind если слот 0–3, `PacketSyncSpirit`. Команда `/craft` передаёт слот −1 (только книга).
+* Кнопка Craft выключена, если комбинация закрыта. Закрытые оси не показываются. Шапка — ступень и прогресс развития.
 
 ## 8. Что не делать
 
